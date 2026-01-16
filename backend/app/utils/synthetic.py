@@ -33,8 +33,8 @@ def generate_opportunity(pair: str, dex_a: str, dex_b: str) -> OpportunityData:
     # Liquidity: $10k - $500k
     liquidity = random.uniform(10000, 500000)
     
-    # Gas fees on Arbitrum L2: $0.50 - $5.00
-    gas_estimate = random.uniform(0.50, 5.00)
+    # Gas fees on L2: $0.10 - $2.00
+    gas_estimate = random.uniform(0.10, 2.00)
     
     # Expected return: spread minus slippage and fees
     slippage_estimate = spread_pct * 0.2  # Assume 20% slippage

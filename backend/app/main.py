@@ -39,7 +39,7 @@ async def lifespan(app: FastAPI):
     # Warm-up simulation
     print("⚡ Running warm-up simulation...")
     try:
-        opp = generate_opportunity("USDC-USDT", "Camelot", "Sushiswap")
+        opp = generate_opportunity("BTC-YES", "Polymarket", "Limitless")
         mc = run_monte_carlo(opp, num_paths=config.warmup_paths)
         print("✅ Warm-up complete")
     except Exception as e:
@@ -76,7 +76,7 @@ async def lifespan(app: FastAPI):
 # Create FastAPI app
 app = FastAPI(
     title="ARBISENSE API",
-    description="Real-Time Multi-Agent Arbitrage Oracle for Arbitrum",
+    description="Real-Time Multi-Agent Arbitrage Oracle",
     version="2.0.0",
     lifespan=lifespan
 )

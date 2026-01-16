@@ -336,7 +336,7 @@ export default function HomePage() {
               <span style={{ color: '#00ff88' }}>SYSTEM ONLINE</span>
             </div>
             <span style={{ color: '#666666' }}>│</span>
-            <span style={{ color: '#b8bfc7' }}>ARBITRUM MAINNET</span>
+            <span style={{ color: '#b8bfc7' }}>MULTI-CHAIN SIGNAL</span>
             <span style={{ color: '#666666' }}>│</span>
             <span style={{ color: '#b8bfc7' }}>LATENCY: 47ms</span>
           </div>
