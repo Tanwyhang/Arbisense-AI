@@ -30,7 +30,7 @@ export default function TickerTape({
   return (
     <div style={{
       position: 'fixed',
-      bottom: '100px',
+      bottom: 0,
       left: 0,
       right: 0,
       zIndex: 999,

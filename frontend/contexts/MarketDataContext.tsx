@@ -84,8 +84,8 @@ export function MarketDataProvider({ children, autoConnect = true }: MarketDataP
     onDisconnect: () => {
       console.log('Market data WebSocket disconnected');
     },
-    onError: (error) => {
-      console.error('Market data WebSocket error:', error);
+    onError: () => {
+      console.warn('Market data WebSocket connection failed. Will retry automatically.');
     },
   });
   
@@ -98,8 +98,8 @@ export function MarketDataProvider({ children, autoConnect = true }: MarketDataP
     onDisconnect: () => {
       console.log('Arbitrage WebSocket disconnected');
     },
-    onError: (error) => {
-      console.error('Arbitrage WebSocket error:', error);
+    onError: () => {
+      console.warn('Arbitrage WebSocket connection failed. Will retry automatically.');
     },
   });
   

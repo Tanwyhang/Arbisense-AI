@@ -20,6 +20,9 @@ from app.engines.arbitrage_engine import get_arbitrage_engine, ArbitrageEngine
 from app.config import config
 from app.websocket_manager import ws_manager, WebSocketManager
 from app.services import get_polymarket_service, get_limitless_service
+from app.endpoints import optimizer, chatbot
+from app.endpoints import arbitrage  # NEW: Advanced arbitrage endpoints
+from app.engines.parameter_optimizer import get_parameter_optimizer
 
 # Configure logging
 logging.basicConfig(
@@ -58,7 +61,12 @@ async def lifespan(app: FastAPI):
     print("🔍 Starting arbitrage engine...")
     arb_engine = get_arbitrage_engine()
     await arb_engine.start()
-    
+
+    # Initialize parameter optimizer
+    print("🎛️  Initializing parameter optimizer...")
+    param_optimizer = get_parameter_optimizer()
+    await param_optimizer.initialize()
+
     print("✅ All services started")
     
     yield
@@ -89,6 +97,11 @@ app.add_middleware(
     allow_methods=config.cors_methods,
     allow_headers=config.cors_headers,
 )
+
+# Include routers
+app.include_router(optimizer.router)
+app.include_router(chatbot.router)
+app.include_router(arbitrage.router)  # NEW: Advanced arbitrage API
 
 
 # =============================================================================
@@ -273,8 +286,11 @@ async def root():
             "arbitrage_signals": "/api/arbitrage/signals",
             "arbitrage_alerts": "/api/arbitrage/alerts",
             "market_data_status": "/api/market-data/status",
+            "optimizer": "/api/optimizer/*",
+            "chatbot": "/api/chatbot/*",
             "ws_market_data": "/ws/market-data",
-            "ws_arbitrage": "/ws/arbitrage"
+            "ws_arbitrage": "/ws/arbitrage",
+            "ws_chatbot": "/api/chatbot/ws/{session_id}"
         }
     }
 

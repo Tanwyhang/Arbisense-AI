@@ -72,7 +72,8 @@ export default function ModelVariantComparison({ data }: ModelVariantComparisonP
   };
 
   const sortedVariants = getSortedVariants();
-  const bestVariant = data.variants.find(v => v.variant_id === data.best_variant);
+  // Winner is dynamically determined - always the #1 ranked variant in the sorted list
+  const bestVariant = sortedVariants.length > 0 ? sortedVariants[0] : undefined;
 
   return (
     <div style={{
@@ -408,7 +409,7 @@ export default function ModelVariantComparison({ data }: ModelVariantComparisonP
           </thead>
           <tbody>
             {sortedVariants.map((variant, index) => {
-              const isWinner = variant.variant_id === data.best_variant;
+              const isWinner = bestVariant ? variant.variant_id === bestVariant.variant_id : false;
               const isSelected = selectedVariant === variant.variant_id;
 
               return (

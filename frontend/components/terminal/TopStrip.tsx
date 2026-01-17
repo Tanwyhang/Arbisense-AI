@@ -37,13 +37,19 @@ export default function TopStrip({
 
     switch (action) {
       case 'HELP':
-        alert('ARBISENSE Terminal Help\n\n[F1] HELP - Show this help dialog\n[F2] SCAN - Scan arbitrage opportunities\n[F3] ANALYZE - Analyze current position\n[F4] EXPORT - Export data\n[F5] SETTINGS - Configure settings\n[F6] CLEAR - Clear terminal\n[F7] REFRESH - Refresh data\n[F8] LOGOUT - Logout session');
+        alert('ARBISENSE Terminal Help\n\n[F1] HELP - Show this help dialog\n[F2] SCAN - Scan arbitrage opportunities\n[F3] ANALYZE - Analyze current position\n[F4] OPTIMIZE - AI Parameter Optimizer\n[F5] SETUP - Bot Setup Wizard\n[F6] EXPORT - Export data\n[F7] SETTINGS - Configure settings\n[F8] REFRESH - Refresh data\n[F9] LOGOUT - Logout session');
         break;
       case 'SCAN':
         router.push('/dashboard');
         break;
       case 'ANALYZE':
         router.push('/evaluation');
+        break;
+      case 'OPTIMIZE':
+        router.push('/optimizer');
+        break;
+      case 'SETUP':
+        router.push('/setup');
         break;
       case 'EXPORT':
         window.print();
@@ -72,9 +78,9 @@ export default function TopStrip({
     const handleKeyPress = (e: KeyboardEvent) => {
       if (e.key.startsWith('F')) {
         const fKeyNumber = parseInt(e.key.substring(1));
-        if (fKeyNumber >= 1 && fKeyNumber <= 8) {
+        if (fKeyNumber >= 1 && fKeyNumber <= 9) {
           e.preventDefault();
-          const actions = ['HELP', 'SCAN', 'ANALYZE', 'EXPORT', 'SETTINGS', 'CLEAR', 'REFRESH', 'LOGOUT'];
+          const actions = ['HELP', 'SCAN', 'ANALYZE', 'OPTIMIZE', 'SETUP', 'EXPORT', 'SETTINGS', 'REFRESH', 'LOGOUT'];
           handleFunctionKey(actions[fKeyNumber - 1]);
         }
       }
@@ -94,11 +100,12 @@ export default function TopStrip({
     { key: 'F1', label: 'HELP', action: 'HELP' },
     { key: 'F2', label: 'SCAN', action: 'SCAN' },
     { key: 'F3', label: 'ANALYZE', action: 'ANALYZE' },
-    { key: 'F4', label: 'EXPORT', action: 'EXPORT' },
-    { key: 'F5', label: 'SETTINGS', action: 'SETTINGS' },
-    { key: 'F6', label: 'CLEAR', action: 'CLEAR' },
-    { key: 'F7', label: 'REFRESH', action: 'REFRESH' },
-    { key: 'F8', label: 'LOGOUT', action: 'LOGOUT' },
+    { key: 'F4', label: 'OPTIMIZE', action: 'OPTIMIZE' },
+    { key: 'F5', label: 'SETUP', action: 'SETUP' },
+    { key: 'F6', label: 'EXPORT', action: 'EXPORT' },
+    { key: 'F7', label: 'SETTINGS', action: 'SETTINGS' },
+    { key: 'F8', label: 'REFRESH', action: 'REFRESH' },
+    { key: 'F9', label: 'LOGOUT', action: 'LOGOUT' },
   ];
 
   const FunctionKeyButton = ({ fKey }: { fKey: FunctionKey }) => {

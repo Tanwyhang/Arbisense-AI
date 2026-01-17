@@ -1,6 +1,7 @@
 import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { motion } from 'framer-motion';
 
 interface SortableWidgetProps {
   id: string;
@@ -8,14 +9,19 @@ interface SortableWidgetProps {
   title?: string;
   minimal?: boolean;
   isFocused?: boolean;
+  isAnimating?: boolean;
   onClick?: () => void;
 }
 
 // Hyprland-style snappy bezier animation
-const HYPRLAND_BEZIER = 'cubic-bezier(0.05, 0.9, 0.1, 1.05)';
-const ANIMATION_DURATION = '220ms';
+const HYPRLAND_BEZIER = [0.05, 0.9, 0.1, 1.05] as const;
+const ANIMATION_DURATION = 0.28; // seconds for framer-motion
 
-export function SortableWidget({ id, children, title, minimal, isFocused, onClick }: SortableWidgetProps) {
+// CSS version for inline styles
+const CSS_BEZIER = 'cubic-bezier(0.05, 0.9, 0.1, 1.05)';
+const CSS_DURATION = '280ms';
+
+export function SortableWidget({ id, children, title, minimal, isFocused, isAnimating: isMoving, onClick }: SortableWidgetProps) {
   const {
     attributes,
     listeners,
@@ -23,13 +29,17 @@ export function SortableWidget({ id, children, title, minimal, isFocused, onClic
     transform,
     transition,
     isDragging
-  } = useSortable({ id });
-
-  const baseTransition = `transform ${ANIMATION_DURATION} ${HYPRLAND_BEZIER}, box-shadow ${ANIMATION_DURATION} ${HYPRLAND_BEZIER}, border-color ${ANIMATION_DURATION} ${HYPRLAND_BEZIER}`;
+  } = useSortable({ 
+    id,
+    transition: {
+      duration: 280,
+      easing: 'cubic-bezier(0.05, 0.9, 0.1, 1.05)',
+    },
+  });
 
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition: transition || baseTransition,
+    transition: transition,
     opacity: isDragging ? 0.5 : 1,
     zIndex: isDragging ? 999 : isFocused ? 100 : 'auto',
     marginBottom: minimal ? 'var(--space-2)' : 'var(--space-4)',
@@ -41,14 +51,41 @@ export function SortableWidget({ id, children, title, minimal, isFocused, onClic
   const focusStyles = isFocused ? {
     boxShadow: '0 0 0 2px var(--accent-cyan), 0 0 20px rgba(0, 255, 255, 0.3), 0 4px 20px rgba(0, 255, 255, 0.15)',
     borderColor: 'var(--accent-cyan)',
-    transform: `${CSS.Transform.toString(transform) || ''} scale(1.005)`.trim(),
   } : {};
+
+  // Framer Motion layout animation config
+  const layoutTransition = {
+    type: 'tween' as const,
+    ease: HYPRLAND_BEZIER,
+    duration: ANIMATION_DURATION,
+  };
+
+  // Animation variants for the glow effect
+  const glowVariants = {
+    idle: { 
+      scale: 1,
+      boxShadow: isFocused 
+        ? '0 0 0 2px var(--accent-cyan), 0 0 20px rgba(0, 255, 255, 0.3), 0 4px 20px rgba(0, 255, 255, 0.15)'
+        : '0 2px 8px rgba(0, 0, 0, 0.3)',
+    },
+    moving: { 
+      scale: 1.02,
+      boxShadow: '0 0 0 3px var(--accent-cyan), 0 0 30px rgba(0, 255, 255, 0.5), 0 8px 30px rgba(0, 255, 255, 0.25)',
+    },
+  };
 
   if (minimal) {
     return (
-      <div 
+      <motion.div 
         ref={setNodeRef} 
+        id={id}
         style={{ ...style, ...focusStyles }} 
+        className="widget-container"
+        layout
+        layoutId={id}
+        transition={layoutTransition}
+        variants={glowVariants}
+        animate={isMoving ? 'moving' : 'idle'}
         {...attributes} 
         {...listeners}
         onClick={onClick}
@@ -69,10 +106,7 @@ export function SortableWidget({ id, children, title, minimal, isFocused, onClic
           color: isFocused ? 'var(--accent-cyan)' : 'var(--text-white)',
           letterSpacing: '0.05em',
           backdropFilter: 'blur(4px)',
-          boxShadow: isFocused 
-            ? '0 0 15px rgba(0, 255, 255, 0.4), 0 2px 4px rgba(0,0,0,0.2)' 
-            : '0 2px 4px rgba(0,0,0,0.2)',
-          transition: `all ${ANIMATION_DURATION} ${HYPRLAND_BEZIER}`,
+          transition: `all ${CSS_DURATION} ${CSS_BEZIER}`,
         }}
         onMouseDown={e => e.currentTarget.style.cursor = 'grabbing'}
         onMouseUp={e => e.currentTarget.style.cursor = 'grab'}
@@ -90,15 +124,21 @@ export function SortableWidget({ id, children, title, minimal, isFocused, onClic
             </div>
           )}
         </div>
-      </div>
+      </motion.div>
     );
   }
 
   return (
-    <div 
+    <motion.div 
       ref={setNodeRef} 
+      id={id}
       style={{ ...style, ...focusStyles }} 
       className="widget-container"
+      layout
+      layoutId={id}
+      transition={layoutTransition}
+      variants={glowVariants}
+      animate={isMoving ? 'moving' : 'idle'}
       onClick={onClick}
       tabIndex={0}
     >
@@ -118,7 +158,7 @@ export function SortableWidget({ id, children, title, minimal, isFocused, onClic
           alignItems: 'center',
           userSelect: 'none',
           marginBottom: 0,
-          transition: `all ${ANIMATION_DURATION} ${HYPRLAND_BEZIER}`,
+          transition: `all ${CSS_DURATION} ${CSS_BEZIER}`,
         }}
         onMouseDown={e => e.currentTarget.style.cursor = 'grabbing'}
         onMouseUp={e => e.currentTarget.style.cursor = 'grab'}
@@ -165,13 +205,13 @@ export function SortableWidget({ id, children, title, minimal, isFocused, onClic
         borderBottomRightRadius: '4px',
         display: 'flex',
         flexDirection: 'column',
-        transition: `border-color ${ANIMATION_DURATION} ${HYPRLAND_BEZIER}`,
-        overflow: 'hidden', // Prevent content spillover
+        transition: `border-color ${CSS_DURATION} ${CSS_BEZIER}`,
+        overflow: 'hidden',
       }}>
         <div style={{ overflowX: 'auto', width: '100%' }}>
           {children}
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

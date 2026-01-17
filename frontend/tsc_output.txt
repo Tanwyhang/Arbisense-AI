@@ -1,0 +1,1 @@
+components/optimizer/RingVisualization.tsx(130,17): error TS2657: JSX expressions must have one parent element.

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { SimulationResponse } from "@/types/api";
 import TopStrip from "@/components/terminal/TopStrip";
-import CommandBar from "@/components/terminal/CommandBar";
+
 import TickerTape from "@/components/terminal/TickerTape";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { MarketDataProvider } from "@/contexts/MarketDataContext";
@@ -126,22 +126,7 @@ export default function DashboardPage() {
     );
   }
 
-  const handleCommand = (command: string) => {
-    console.log('Command received:', command);
-    switch (command.toUpperCase()) {
-      case 'HELP':
-        alert('Available commands:\nF1: HELP\nF2: SCAN\nF3: ANALYZE\nF4: EXPORT\nF5: SETTINGS\nF6: CLEAR\nF7: REFRESH\nF8: LOGOUT');
-        break;
-      case 'REFRESH':
-        window.location.reload();
-        break;
-      case 'CLEAR':
-        // Clear logic would go here
-        break;
-      default:
-        console.log('Unknown command:', command);
-    }
-  };
+
 
   return (
     <MarketDataProvider autoConnect={true}>
@@ -156,7 +141,7 @@ export default function DashboardPage() {
       <TickerTape />
 
       <div className="container" style={{
-        paddingBottom: '180px', // Space for command bar and ticker
+        paddingBottom: '50px',
       }}>
         {/* Terminal-style Info Header */}
         <header style={{
@@ -222,11 +207,7 @@ export default function DashboardPage() {
         <DashboardLayout data={data} />
       </div>
 
-      {/* Terminal Command Bar */}
-      <CommandBar
-        placeholder="Enter command... (HELP, SCAN, ANALYZE, EXPORT, CLEAR, REFRESH)"
-        onCommand={handleCommand}
-      />
+
     </MarketDataProvider>
   );
 }

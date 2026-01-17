@@ -1,425 +1,333 @@
 'use client';
 
-import { RevenueProjection } from "@/types/api";
+import { useState, useRef, useMemo, useCallback } from 'react';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Brush,
+  ReferenceLine,
+  Area,
+  ComposedChart,
+} from 'recharts';
+import { RevenueProjection, RevenueScenario } from '@/types/api';
+import { ChartContainer } from '@/components/charts';
+import ChartControls, { TimePreset, ComparisonToggle, ScenarioSelector } from '@/components/charts/ChartControls';
+import ChartLegend, { LegendItem } from '@/components/charts/ChartLegend';
+import { RevenueTooltip } from '@/components/charts/CustomTooltip';
+import { useChartExport } from '@/hooks';
 
 interface RevenueProjectionVizProps {
   data: RevenueProjection;
 }
 
+const SCENARIO_COLORS: Record<string, string> = {
+  'Best Case': 'var(--success-ag-green)',
+  'Average Case': 'var(--accent-safety-yellow)',
+  'Stress Case': 'var(--alert-signal-red)',
+  'Black Swan': 'var(--ink-charcoal)',
+};
+
 export default function RevenueProjectionViz({ data }: RevenueProjectionVizProps) {
-  const width = 800;
-  const height = 400;
-  const padding = { top: 60, right: 40, bottom: 60, left: 80 };
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [visibleScenarios, setVisibleScenarios] = useState<Set<string>>(
+    new Set(data.scenarios.map(s => s.scenario_name))
+  );
+  const [activePreset, setActivePreset] = useState<string>('all');
+  const [comparisonMode, setComparisonMode] = useState(false);
+  const [compareA, setCompareA] = useState<string>(data.scenarios[0]?.scenario_name || '');
+  const [compareB, setCompareB] = useState<string>(data.scenarios[2]?.scenario_name || '');
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
-  const chartWidth = width - padding.left - padding.right;
-  const chartHeight = height - padding.top - padding.bottom;
-
-  // Find min/max cumulative revenue across all scenarios
-  const allCumulativeRevenues = data.scenarios.flatMap(scenario => {
-    let cumulative = 0;
-    return scenario.daily_revenue.map(daily => {
-      cumulative += daily;
-    return cumulative;
-    });
-  }).filter(val => Number.isFinite(val));
-
-  // Handle edge case where all revenues are 0 or range is 0
-  const minVal = Math.min(...allCumulativeRevenues, 0);
-  const maxVal = Math.max(...allCumulativeRevenues);
-  
-  // Ensure we have a valid range to avoid division by zero
-  const range = maxVal - minVal;
-  const minRevenue = range === 0 ? 0 : minVal;
-  const maxRevenue = range === 0 ? 100 : maxVal;
-
-  const numDays = Math.max(data.scenarios[0]?.daily_revenue.length || 30, 2); // Ensure at least 2 points for line
-
-  // Scale functions with NaN protection
-  const scaleX = (day: number) => {
-    const val = padding.left + (day / (numDays - 1)) * chartWidth;
-    return isNaN(val) ? padding.left : val;
-  };
-  
-  const scaleY = (revenue: number) => {
-    const revenueRange = maxRevenue - minRevenue;
-    const val = padding.top + chartHeight - ((revenue - minRevenue) / (revenueRange || 1)) * chartHeight;
-    return isNaN(val) ? padding.top + chartHeight : val;
-  };
-
-  // Scenario colors - brutalist palette
-  const scenarioColors: Record<string, string> = {
-    "Best Case": "var(--success-ag-green)",
-    "Average Case": "var(--accent-safety-yellow)",
-    "Stress Case": "var(--alert-signal-red)",
-    "Black Swan": "var(--ink-charcoal)"
-  };
-
-  // Generate cumulative revenue paths
-  const scenarioPaths = data.scenarios.map(scenario => {
-    let cumulative = 0;
-    const cumulativeRevenue = scenario.daily_revenue.map(daily => {
-      cumulative += daily;
-      return cumulative;
-    });
-
-    const points = cumulativeRevenue.map((revenue, day) =>
-      `${scaleX(day)},${scaleY(revenue)}`
-    ).join(" L ");
-
-    return {
-      name: scenario.scenario_name,
-      path: `M ${points}`,
-      color: scenarioColors[scenario.scenario_name],
-      finalRevenue: cumulative,
-      maxDrawdown: scenario.max_drawdown,
-      breakevenDay: scenario.breakeven_day
-    };
+  const { exportPNG, exportSVG } = useChartExport({
+    containerRef,
+    filename: 'revenue-projection',
   });
 
-  // Grid lines
-  const yGridLines = [0, 0.25, 0.5, 0.75, 1].map(pct => {
-    const revenue = minRevenue + (maxRevenue - minRevenue) * pct;
-    const y = scaleY(revenue);
-    return { y, label: `$${revenue.toFixed(0)}` };
-  });
+  // Transform data for Recharts with cumulative values
+  const chartData = useMemo(() => {
+    const numDays = data.scenarios[0]?.daily_revenue.length || 30;
+    const result = [];
+    const cumulative: Record<string, number> = {};
+    
+    data.scenarios.forEach(s => { cumulative[s.scenario_name] = 0; });
 
-  // Zero line
-  const zeroY = scaleY(0);
+    for (let day = 0; day < numDays; day++) {
+      const point: Record<string, number> = { day };
+      
+      data.scenarios.forEach(scenario => {
+        cumulative[scenario.scenario_name] += scenario.daily_revenue[day];
+        point[scenario.scenario_name] = cumulative[scenario.scenario_name];
+        point[`${scenario.scenario_name}_daily`] = scenario.daily_revenue[day];
+      });
+
+      result.push(point);
+    }
+
+    return result;
+  }, [data.scenarios]);
+
+  // Legend items
+  const legendItems: LegendItem[] = useMemo(() => 
+    data.scenarios.map(s => ({
+      id: s.scenario_name,
+      name: s.scenario_name,
+      color: SCENARIO_COLORS[s.scenario_name] || 'var(--ink-charcoal)',
+      visible: visibleScenarios.has(s.scenario_name),
+    })), [data.scenarios, visibleScenarios]);
+
+  const handleToggleScenario = useCallback((id: string) => {
+    setVisibleScenarios(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const handleToggleAll = useCallback((visible: boolean) => {
+    if (visible) {
+      setVisibleScenarios(new Set(data.scenarios.map(s => s.scenario_name)));
+    } else {
+      setVisibleScenarios(new Set());
+    }
+  }, [data.scenarios]);
+
+  const handlePresetChange = useCallback((preset: TimePreset) => {
+    setActivePreset(preset.id);
+  }, []);
+
+  const handleReset = useCallback(() => {
+    setVisibleScenarios(new Set(data.scenarios.map(s => s.scenario_name)));
+    setActivePreset('all');
+    setComparisonMode(false);
+  }, [data.scenarios]);
+
+  // Confidence band data (between best and worst)
+  const confidenceBand = useMemo(() => {
+    if (chartData.length === 0) return null;
+    const best = data.scenarios.find(s => s.scenario_name === 'Best Case');
+    const worst = data.scenarios.find(s => s.scenario_name === 'Black Swan');
+    if (!best || !worst) return null;
+    return { upper: 'Best Case', lower: 'Black Swan' };
+  }, [chartData, data.scenarios]);
+
+  // Scenarios for comparison dropdown
+  const scenarioOptions = data.scenarios.map(s => ({ id: s.scenario_name, name: s.scenario_name }));
+
+  return (
+    <div ref={containerRef}>
+      <ChartContainer
+        title="Revenue Projection"
+        subtitle="4 Stress Test Scenarios • Cumulative Revenue"
+        badge={{ text: '30D P&L', variant: 'default' }}
+        computationTime={data.computation_time_ms}
+        onExportPNG={exportPNG}
+        onExportSVG={exportSVG}
+        onReset={handleReset}
+        onFullscreenChange={setIsFullscreen}
+      >
+        {/* Legend */}
+        <ChartLegend
+          items={legendItems}
+          onToggle={handleToggleScenario}
+          onToggleAll={handleToggleAll}
+          layout="horizontal"
+        />
+
+        {/* Chart */}
+        <div style={{ 
+          padding: 'var(--space-4)', 
+          background: 'var(--base-raw-white)', 
+          flex: isFullscreen ? 1 : undefined, 
+          height: isFullscreen ? '100%' : '350px',
+          minHeight: '350px' 
+        }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={chartData}>
+              <CartesianGrid 
+                strokeDasharray="0" 
+                stroke="var(--grid-line)" 
+                vertical={false}
+              />
+              
+              <XAxis
+                dataKey="day"
+                axisLine={{ stroke: 'var(--ink-charcoal)', strokeWidth: 2 }}
+                tickLine={false}
+                tick={{ fill: 'var(--ink-charcoal)', fontSize: 11, fontFamily: 'var(--font-data)' }}
+                tickFormatter={(val) => `Day ${val}`}
+                interval="preserveStartEnd"
+              />
+              
+              <YAxis
+                axisLine={{ stroke: 'var(--ink-charcoal)', strokeWidth: 2 }}
+                tickLine={false}
+                tick={{ fill: 'var(--ink-charcoal)', fontSize: 11, fontFamily: 'var(--font-data)' }}
+                tickFormatter={(val) => `$${val.toFixed(0)}`}
+                width={70}
+              />
+
+              {/* Zero reference line */}
+              <ReferenceLine y={0} stroke="var(--ink-charcoal)" strokeWidth={2} strokeDasharray="8 4" />
+
+              {/* Scenario lines */}
+              {data.scenarios.map((scenario) => {
+                const isVisible = visibleScenarios.has(scenario.scenario_name);
+                const isCompareHighlight = comparisonMode && 
+                  (scenario.scenario_name === compareA || scenario.scenario_name === compareB);
+                
+                if (!isVisible && !isCompareHighlight) return null;
+                
+                return (
+                  <Line
+                    key={scenario.scenario_name}
+                    type="linear"
+                    dataKey={scenario.scenario_name}
+                    stroke={SCENARIO_COLORS[scenario.scenario_name]}
+                    strokeWidth={isCompareHighlight ? 4 : 3}
+                    strokeOpacity={isCompareHighlight ? 1 : 0.8}
+                    dot={false}
+                    isAnimationActive={false}
+                  />
+                );
+              })}
+
+              <Tooltip
+                content={<RevenueTooltip />}
+                cursor={{ stroke: 'var(--accent-safety-yellow)', strokeDasharray: '4 4' }}
+              />
+
+              <Brush
+                dataKey="day"
+                height={30}
+                stroke="var(--ink-charcoal)"
+                fill="var(--bg-layer-2)"
+                travellerWidth={8}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Controls */}
+        <ChartControls
+          activePreset={activePreset}
+          onPresetChange={handlePresetChange}
+          showShortcuts={true}
+        >
+          <ComparisonToggle enabled={comparisonMode} onToggle={() => setComparisonMode(!comparisonMode)} />
+          {comparisonMode && (
+            <>
+              <ScenarioSelector scenarios={scenarioOptions} selected={compareA} onSelect={setCompareA} label="A" />
+              <ScenarioSelector scenarios={scenarioOptions} selected={compareB} onSelect={setCompareB} label="B" />
+            </>
+          )}
+        </ChartControls>
+      </ChartContainer>
+
+      {/* Performance Metrics */}
+      <PerformanceMetrics data={data} scenarioColors={SCENARIO_COLORS} />
+    </div>
+  );
+}
+
+function PerformanceMetrics({ data, scenarioColors }: { data: RevenueProjection; scenarioColors: Record<string, string> }) {
+  const scenarioFinalRevenues = data.scenarios.map(s => ({
+    name: s.scenario_name,
+    total: s.total_revenue,
+    color: scenarioColors[s.scenario_name],
+  }));
 
   return (
     <div style={{
-      border: 'var(--border-thick)',
-      borderTop: 'none',
-      background: 'var(--base-raw-white)'
+      padding: 'var(--space-4)',
+      borderBottom: 'var(--border-thick)',
+      background: 'var(--bg-layer-2)',
+      borderLeft: 'var(--border-thick)',
+      borderRight: 'var(--border-thick)'
     }}>
-      {/* Chart Container */}
       <div style={{
-        padding: 'var(--space-4)',
-        borderBottom: 'var(--border-thick)',
-        background: 'var(--bg-layer-1)'
+        fontFamily: 'var(--font-display)',
+        fontWeight: 700,
+        fontSize: '0.875rem',
+        marginBottom: 'var(--space-3)',
+        letterSpacing: '0.1em',
+        textTransform: 'uppercase'
+      }}>30-Day Projection Summary</div>
+
+      {/* Scenario outcomes */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(4, 1fr)',
+        gap: 0,
+        marginBottom: 'var(--space-4)',
+        border: 'var(--border-thin)'
       }}>
-        {/* Header */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: 'var(--space-4)'
-        }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 'var(--space-3)'
+        {scenarioFinalRevenues.map(scenario => (
+          <div key={scenario.name} style={{
+            padding: 'var(--space-3)',
+            borderRight: 'var(--border-thin)',
+            background: 'var(--base-raw-white)',
+            textAlign: 'center'
           }}>
             <div style={{
-              padding: 'var(--space-1) var(--space-3)',
-              border: 'var(--border-thick)',
-              background: 'var(--ink-charcoal)',
-              color: 'var(--base-raw-white)',
-              fontFamily: 'var(--font-display)',
-              fontSize: '0.75rem',
-              fontWeight: 700,
-              letterSpacing: '0.1em',
-              textTransform: 'uppercase',
-              transform: 'rotate(-2deg)'
-            }}>
-              30D P&L
-            </div>
-            <div className="annotation" style={{ margin: 0 }}>
-              4 Stress Test Scenarios • Cumulative Revenue
-            </div>
-          </div>
-
-          <div style={{
-            fontFamily: 'var(--font-data)',
-            fontSize: '0.75rem',
-            color: 'var(--text-muted)'
-          }}>
-            {data.computation_time_ms.toFixed(0)}ms
-          </div>
-        </div>
-
-        <svg viewBox={`0 0 ${width} ${height}`} style={{
-          background: 'var(--base-raw-white)',
-          border: 'var(--border-thick)',
-          width: '100%',
-          height: 'auto'
-        }}>
-          {/* Grid lines */}
-          {yGridLines.map((line, i) => (
-            <g key={i}>
-              <line
-                x1={padding.left}
-                y1={line.y}
-                x2={width - padding.right}
-                y2={line.y}
-                stroke="var(--grid-line)"
-                strokeWidth="1"
-              />
-              <text
-                x={padding.left - 10}
-                y={line.y + 4}
-                textAnchor="end"
-                fill="var(--ink-charcoal)"
-                fontSize="11"
-                fontFamily="var(--font-data)"
-                fontWeight="500"
-              >
-                {line.label}
-              </text>
-            </g>
-          ))}
-
-          {/* Zero line (emphasized) */}
-          <line
-            x1={padding.left}
-            y1={zeroY}
-            x2={width - padding.right}
-            y2={zeroY}
-            stroke="var(--ink-charcoal)"
-            strokeWidth="2"
-            strokeDasharray="8,4"
-          />
-
-          {/* Vertical grid lines */}
-          {[0, 10, 20, 30].map(day => (
-            <line
-              key={day}
-              x1={scaleX(day)}
-              y1={padding.top}
-              x2={scaleX(day)}
-              y2={height - padding.bottom}
-              stroke="var(--grid-line)"
-              strokeWidth="1"
-            />
-          ))}
-
-          {/* X-axis labels */}
-          {[0, 10, 20, 30].map(day => (
-            <text
-              key={day}
-              x={scaleX(day)}
-              y={height - padding.bottom + 25}
-              textAnchor="middle"
-              fill="var(--ink-charcoal)"
-              fontSize="11"
-              fontFamily="var(--font-data)"
-              fontWeight="500"
-            >
-              Day {day}
-            </text>
-          ))}
-
-          {/* Scenario paths */}
-          {[...scenarioPaths].reverse().map((scenario, i) => (
-            <path
-              key={i}
-              d={scenario.path}
-              fill="none"
-              stroke={scenario.color}
-              strokeWidth="3"
-              opacity="0.8"
-              strokeLinejoin="miter"
-              strokeLinecap="square"
-            />
-          ))}
-
-          {/* Axes */}
-          <line
-            x1={padding.left}
-            y1={padding.top}
-            x2={padding.left}
-            y2={height - padding.bottom}
-            stroke="var(--ink-charcoal)"
-            strokeWidth="2"
-          />
-          <line
-            x1={padding.left}
-            y1={height - padding.bottom}
-            x2={width - padding.right}
-            y2={height - padding.bottom}
-            stroke="var(--ink-charcoal)"
-            strokeWidth="2"
-          />
-        </svg>
-      </div>
-
-      {/* Performance Metrics */}
-      <div style={{
-        padding: 'var(--space-4)',
-        borderBottom: 'var(--border-thick)',
-        background: 'var(--bg-layer-2)',
-        borderLeft: 'var(--border-thick)',
-        borderRight: 'var(--border-thick)'
-      }}>
-        <div style={{
-          fontFamily: 'var(--font-display)',
-          fontWeight: 700,
-          fontSize: '0.875rem',
-          marginBottom: 'var(--space-3)',
-          letterSpacing: '0.1em',
-          textTransform: 'uppercase'
-        }}>
-          30-Day Projection Summary
-        </div>
-
-        {/* Scenario outcomes */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
-          gap: 0,
-          marginBottom: 'var(--space-4)',
-          border: 'var(--border-thin)'
-        }}>
-          {scenarioPaths.map(scenario => (
-            <div
-              key={scenario.name}
-              style={{
-                padding: 'var(--space-3)',
-                borderRight: 'var(--border-thin)',
-                background: 'var(--base-raw-white)',
-                textAlign: 'center'
-              }}
-            >
-              <div style={{
-                fontSize: '0.7rem',
-                fontFamily: 'var(--font-display)',
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                letterSpacing: '0.1em',
-                marginBottom: 'var(--space-1)',
-                color: '#b8bfc7'
-              }}>
-                {scenario.name}
-              </div>
-              <div style={{
-                fontSize: '1.5rem',
-                fontWeight: 700,
-                fontFamily: 'var(--font-data)',
-                color: scenario.finalRevenue >= 0 ? 'var(--success-ag-green)' : 'var(--alert-signal-red)',
-                lineHeight: 1
-              }}>
-                {scenario.finalRevenue >= 0 ? '+' : ''}${scenario.finalRevenue.toFixed(0)}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Expected value */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 'var(--space-3)',
-          padding: 'var(--space-3)',
-          border: 'var(--border-thick)',
-          background: 'var(--base-raw-white)'
-        }}>
-          <div className="number-indicator" style={{
-            background: 'var(--accent-safety-yellow)',
-            color: 'var(--ink-charcoal)'
-          }}>
-            EV
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={{
-              fontSize: '0.75rem',
+              fontSize: '0.7rem',
               fontFamily: 'var(--font-display)',
               fontWeight: 600,
               textTransform: 'uppercase',
               letterSpacing: '0.1em',
-              color: 'var(--text-muted)',
-              marginBottom: '4px'
-            }}>
-              Expected Value
-            </div>
+              marginBottom: 'var(--space-1)',
+              color: '#b8bfc7'
+            }}>{scenario.name}</div>
             <div style={{
-              fontSize: '2rem',
+              fontSize: '1.5rem',
               fontWeight: 700,
               fontFamily: 'var(--font-data)',
-              color: data.expected_value >= 0 ? 'var(--success-ag-green)' : 'var(--alert-signal-red)',
+              color: scenario.total >= 0 ? 'var(--success-ag-green)' : 'var(--alert-signal-red)',
               lineHeight: 1
-            }}>
-              {data.expected_value >= 0 ? '+' : ''}${data.expected_value.toFixed(0)}
-            </div>
-          </div>
-          <div style={{
-            textAlign: 'right',
-            fontFamily: 'var(--font-data)',
-            fontSize: '0.875rem',
-            color: 'var(--text-muted)'
-          }}>
-            <div style={{ marginBottom: '4px' }}>Downside Risk:</div>
-            <div style={{
-              fontSize: '1.25rem',
-              fontWeight: 700,
-              color: 'var(--alert-signal-red)'
-            }}>
-              {data.downside_risk_pct.toFixed(0)}%
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Scenario Details */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(2, 1fr)',
-        gap: 0,
-        border: 'var(--border-thin)',
-        borderTop: 'none'
-      }}>
-        {data.scenarios.map((scenario, index) => (
-          <div
-            key={scenario.scenario_name}
-            style={{
-              padding: 'var(--space-4)',
-              borderRight: index % 2 === 0 ? 'var(--border-thin)' : 'none',
-              borderBottom: 'var(--border-thin)',
-              background: `var(--bg-layer-${(index % 3) + 1})`,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 'var(--space-3)'
-            }}
-          >
-            {/* Color indicator */}
-            <div style={{
-              width: '16px',
-              height: '16px',
-              background: scenarioColors[scenario.scenario_name],
-              border: '2px solid var(--ink-charcoal)',
-              flexShrink: 0
-            }} />
-
-            <div style={{ flex: 1 }}>
-              <div style={{
-                fontSize: '1rem',
-                fontWeight: 700,
-                fontFamily: 'var(--font-display)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                marginBottom: 'var(--space-1)',
-                color: 'var(--ink-charcoal)'
-              }}>
-                {scenario.scenario_name}
-              </div>
-              <div style={{
-                fontSize: '0.875rem',
-                fontFamily: 'var(--font-data)',
-                color: 'var(--text-muted)',
-                lineHeight: 1.4
-              }}>
-                {scenario.breakeven_day
-                  ? `Breakeven: Day ${scenario.breakeven_day}`
-                  : 'No Breakeven'}
-                {scenario.max_drawdown < 0 && (
-                  <span> • Max DD: <span style={{
-                    color: 'var(--alert-signal-red)',
-                    fontWeight: 600
-                  }}>${scenario.max_drawdown.toFixed(0)}</span></span>
-                )}
-              </div>
-            </div>
+            }}>{scenario.total >= 0 ? '+' : ''}${scenario.total.toFixed(0)}</div>
           </div>
         ))}
+      </div>
+
+      {/* Expected value */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 'var(--space-3)',
+        padding: 'var(--space-3)',
+        border: 'var(--border-thick)',
+        background: 'var(--base-raw-white)'
+      }}>
+        <div className="number-indicator" style={{ background: 'var(--accent-safety-yellow)', color: 'var(--ink-charcoal)' }}>EV</div>
+        <div style={{ flex: 1 }}>
+          <div style={{
+            fontSize: '0.75rem',
+            fontFamily: 'var(--font-display)',
+            fontWeight: 600,
+            textTransform: 'uppercase',
+            letterSpacing: '0.1em',
+            color: 'var(--text-muted)',
+            marginBottom: '4px'
+          }}>Expected Value</div>
+          <div style={{
+            fontSize: '2rem',
+            fontWeight: 700,
+            fontFamily: 'var(--font-data)',
+            color: data.expected_value >= 0 ? 'var(--success-ag-green)' : 'var(--alert-signal-red)',
+            lineHeight: 1
+          }}>{data.expected_value >= 0 ? '+' : ''}${data.expected_value.toFixed(0)}</div>
+        </div>
+        <div style={{ textAlign: 'right', fontFamily: 'var(--font-data)', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
+          <div style={{ marginBottom: '4px' }}>Downside Risk:</div>
+          <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--alert-signal-red)' }}>
+            {data.downside_risk_pct.toFixed(0)}%
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -26,6 +26,8 @@ import MonteCarloViz from "@/components/MonteCarloViz";
 import RevenueProjectionViz from "@/components/RevenueProjectionViz";
 import AgentPanel from "@/components/AgentPanel";
 import KellyDisplay from "@/components/KellyDisplay";
+import { OpportunityWidget } from "./OpportunityWidget";
+import { PipelinePerfWidget } from "./PipelinePerfWidget";
 
 // Evaluation Widget Components
 import BacktestSummary from '@/components/dashboard/evaluation/BacktestSummary';
@@ -54,179 +56,7 @@ import { generateSyntheticBacktest, generateModelComparison, generateStressTestS
 // ============================================================================
 // Inline Widget Components
 // ============================================================================
-
-const OpportunityWidget = ({ data }: { data: SimulationResponse }) => (
-  <div className="panel-body" style={{ padding: 0 }}>
-
-     <div style={{
-            display: 'grid',
-            border: 'none',
-            background: 'transparent',
-            padding: 0,
-            gap: '1px',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))'
-          }}>
-            {/* Trading Pair */}
-            <div style={{
-              padding: 'var(--space-3)',
-              border: 'var(--border-thin)',
-              background: 'var(--bg-layer-1)'
-            }}>
-              <div className="stat-label">Trading Pair</div>
-              <div style={{
-                fontSize: '1.5rem',
-                fontWeight: 700,
-                fontFamily: 'var(--font-display)',
-                marginBottom: 'var(--space-1)',
-                color: 'var(--ink-charcoal)'
-              }}>
-                {data.opportunity.pair}
-              </div>
-              <div className="annotation">
-                {data.opportunity.dex_a} / {data.opportunity.dex_b}
-              </div>
-            </div>
-
-            {/* Price Spread */}
-            <div style={{
-              padding: 'var(--space-3)',
-              border: 'var(--border-thin)',
-              background: 'var(--bg-layer-2)'
-            }}>
-              <div className="stat-label">Price Spread</div>
-              <div style={{
-                fontSize: '1.5rem',
-                fontWeight: 700,
-                fontFamily: 'var(--font-data)',
-                marginBottom: 'var(--space-1)',
-                color: 'var(--accent-safety-yellow)'
-              }}>
-                {data.opportunity.spread_pct.toFixed(2)}%
-              </div>
-               <div className="annotation">
-                Diff: ${(data.opportunity.price_b - data.opportunity.price_a).toFixed(4)}
-              </div>
-            </div>
-
-            {/* Expected Return */}
-            <div style={{
-              padding: 'var(--space-3)',
-              border: 'var(--border-thin)',
-              background: data.opportunity.expected_return >= 0
-                ? 'var(--success-ag-green)'
-                : 'var(--alert-signal-red)',
-              color: 'var(--ink-charcoal)'
-            }}>
-              <div className="stat-label" style={{ opacity: 0.7, color: 'inherit' }}>Return</div>
-              <div style={{
-                fontSize: '1.5rem',
-                fontWeight: 700,
-                fontFamily: 'var(--font-data)',
-                marginBottom: 'var(--space-1)'
-              }}>
-                {data.opportunity.expected_return.toFixed(2)}%
-              </div>
-              <div className="annotation" style={{ opacity: 0.8, color: 'inherit' }}>
-                Win: {(data.opportunity.win_probability * 100).toFixed(0)}%
-              </div>
-            </div>
-
-             {/* Liquidity */}
-            <div style={{
-              padding: 'var(--space-3)',
-              border: 'var(--border-thin)',
-              background: 'var(--bg-layer-3)'
-            }}>
-              <div className="stat-label">Liquidity</div>
-              <div style={{
-                fontSize: '1.5rem',
-                fontWeight: 700,
-                fontFamily: 'var(--font-data)',
-                marginBottom: 'var(--space-1)',
-                color: 'var(--ink-charcoal)'
-              }}>
-                ${data.opportunity.liquidity.toFixed(0)}
-              </div>
-              <div className="annotation">
-                Gas: ${data.opportunity.gas_estimate.toFixed(2)}
-              </div>
-            </div>
-    </div>
-  </div>
-);
-
-const PipelinePerfWidget = ({ data }: { data: SimulationResponse }) => (
-  <div style={{
-          padding: 'var(--space-4)',
-        }}>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))',
-            gap: 'var(--space-3)',
-            marginBottom: 'var(--space-3)'
-          }}>
-            <div>
-              <div className="stat-label">Total Time</div>
-              <div className="stat-value" style={{
-                fontSize: '1.5rem',
-                color: data.total_computation_time_ms < 1100
-                  ? 'var(--success-ag-green)'
-                  : 'var(--accent-safety-yellow)'
-              }}>
-                {data.total_computation_time_ms.toFixed(0)}ms
-              </div>
-            </div>
-
-            <div>
-              <div className="stat-label">Status</div>
-               <div style={{
-                fontSize: '1.5rem',
-                fontWeight: 700,
-                fontFamily: 'var(--font-display)',
-                color: data.total_computation_time_ms < 1100
-                  ? 'var(--success-ag-green)'
-                  : 'var(--alert-signal-red)'
-              }}>
-                {data.total_computation_time_ms < 1100 ? 'PASS' : 'WARN'}
-              </div>
-            </div>
-            
-             <div>
-              <div className="stat-label">Efficiency</div>
-              <div className="stat-value" style={{
-                fontSize: '1.5rem',
-                color: 'var(--ink-charcoal)'
-              }}>
-                {Math.min(100, (1100 / Math.max(1, data.total_computation_time_ms)) * 100).toFixed(0)}%
-              </div>
-            </div>
-          </div>
-
-          <div className="divider"></div>
-
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            fontSize: '0.65rem',
-            fontFamily: 'var(--font-data)',
-            color: 'var(--text-muted)',
-            flexWrap: 'wrap',
-            gap: 'var(--space-2)'
-          }}>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              <span>MC: {data.monte_carlo.computation_time_ms.toFixed(0)}</span>
-              <span>•</span>
-              <span>Agents: {data.consensus.computation_time_ms.toFixed(0)}</span>
-              <span>•</span>
-              <span>Kelly: {data.kelly.computation_time_ms.toFixed(0)}</span>
-            </div>
-            {data.performance_warning && (
-              <span style={{ color: 'var(--accent-amber)' }}>⚠️ SLO BREACH</span>
-            )}
-          </div>
-  </div>
-);
+// (Extracted to separate files)
 
 // Droppable placeholder for empty containers
 const DroppablePlaceholder = ({ id, label }: { id: string; label: string }) => {
@@ -301,25 +131,25 @@ const PRESETS: Record<LayoutPreset, { sidebar: WidgetType[]; col1: WidgetType[];
     sidebar: [],
     col1: ['opportunity'],
     col2: ['consensus', 'kelly'],
-    col3: ['revenue'],
+    col3: ['revenue', 'monte_carlo'],
     col4: ['pipeline_perf'],
-    fullWidth: ['monte_carlo'],
+    fullWidth: [],
   },
   EXECUTION: {
     sidebar: [],
     col1: ['opportunity'],
     col2: ['consensus'],
-    col3: ['kelly'],
+    col3: ['kelly', 'monte_carlo'],
     col4: ['revenue', 'pipeline_perf'],
-    fullWidth: ['monte_carlo'],
+    fullWidth: [],
   },
   ANALYTICAL: {
     sidebar: [],
     col1: ['opportunity'],
     col2: ['consensus'],
-    col3: ['kelly'],
+    col3: ['kelly', 'monte_carlo'],
     col4: ['pipeline_perf'],
-    fullWidth: ['monte_carlo', 'revenue'],
+    fullWidth: ['revenue'],
   },
   STACKED: {
     sidebar: [],
@@ -527,6 +357,27 @@ export default function DashboardLayout({ data }: DashboardLayoutProps) {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [focusedWidget, getAllWidgets, moveWithinContainer, moveBetweenContainers]);
+
+  // Auto-scroll to focused widget
+  useEffect(() => {
+    if (focusedWidget && !activeId) {
+      // Small timeout to allow React to commit updates and Framer Motion to start
+      const timer = setTimeout(() => {
+        const element = document.getElementById(focusedWidget);
+        if (element) {
+          const rect = element.getBoundingClientRect();
+          const absoluteTop = window.scrollY + rect.top;
+          // Align the top of the widget to the center of the viewport
+          const targetScroll = absoluteTop - (window.innerHeight / 2);
+          window.scrollTo({
+            top: targetScroll,
+            behavior: 'smooth'
+          });
+        }
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [focusedWidget, items, activeId]);
   
   // Synthetic data for evaluation components
   const [syntheticData] = useState(() => {
@@ -774,6 +625,7 @@ export default function DashboardLayout({ data }: DashboardLayoutProps) {
                       id={id} 
                       title={WIDGET_TITLES[id]}
                       isFocused={focusedWidget === id}
+                      isAnimating={isAnimating && focusedWidget === id}
                       onClick={() => setFocusedWidget(id)}
                     >
                       {renderWidget(id)}
@@ -822,6 +674,7 @@ export default function DashboardLayout({ data }: DashboardLayoutProps) {
                       title={WIDGET_TITLES[id]} 
                       minimal={true}
                       isFocused={focusedWidget === id}
+                      isAnimating={isAnimating && focusedWidget === id}
                       onClick={() => setFocusedWidget(id)}
                     >
                         {null}
@@ -839,7 +692,7 @@ export default function DashboardLayout({ data }: DashboardLayoutProps) {
               <SortableContext id="col1_container" items={items.col1} strategy={verticalListSortingStrategy}>
                   <div id="col1_container" style={{ minHeight: '100%' }}>
                     {items.col1.map(id => (
-                    <SortableWidget key={id} id={id} title={WIDGET_TITLES[id]} isFocused={focusedWidget === id} onClick={() => setFocusedWidget(id)}>
+                    <SortableWidget key={id} id={id} title={WIDGET_TITLES[id]} isFocused={focusedWidget === id} isAnimating={isAnimating && focusedWidget === id} onClick={() => setFocusedWidget(id)}>
                         {renderWidget(id)}
                     </SortableWidget>
                     ))}
@@ -853,7 +706,7 @@ export default function DashboardLayout({ data }: DashboardLayoutProps) {
               <SortableContext id="col2_container" items={items.col2} strategy={verticalListSortingStrategy}>
                   <div id="col2_container" style={{ minHeight: '100%' }}>
                     {items.col2.map(id => (
-                    <SortableWidget key={id} id={id} title={WIDGET_TITLES[id]} isFocused={focusedWidget === id} onClick={() => setFocusedWidget(id)}>
+                    <SortableWidget key={id} id={id} title={WIDGET_TITLES[id]} isFocused={focusedWidget === id} isAnimating={isAnimating && focusedWidget === id} onClick={() => setFocusedWidget(id)}>
                         {renderWidget(id)}
                     </SortableWidget>
                     ))}
@@ -867,7 +720,7 @@ export default function DashboardLayout({ data }: DashboardLayoutProps) {
               <SortableContext id="col3_container" items={items.col3} strategy={verticalListSortingStrategy}>
                   <div id="col3_container" style={{ minHeight: '100%' }}>
                     {items.col3.map(id => (
-                    <SortableWidget key={id} id={id} title={WIDGET_TITLES[id]} isFocused={focusedWidget === id} onClick={() => setFocusedWidget(id)}>
+                    <SortableWidget key={id} id={id} title={WIDGET_TITLES[id]} isFocused={focusedWidget === id} isAnimating={isAnimating && focusedWidget === id} onClick={() => setFocusedWidget(id)}>
                         {renderWidget(id)}
                     </SortableWidget>
                     ))}
@@ -881,7 +734,7 @@ export default function DashboardLayout({ data }: DashboardLayoutProps) {
               <SortableContext id="col4_container" items={items.col4} strategy={verticalListSortingStrategy}>
                   <div id="col4_container" style={{ minHeight: '100%' }}>
                     {items.col4.map(id => (
-                    <SortableWidget key={id} id={id} title={WIDGET_TITLES[id]} isFocused={focusedWidget === id} onClick={() => setFocusedWidget(id)}>
+                    <SortableWidget key={id} id={id} title={WIDGET_TITLES[id]} isFocused={focusedWidget === id} isAnimating={isAnimating && focusedWidget === id} onClick={() => setFocusedWidget(id)}>
                         {renderWidget(id)}
                     </SortableWidget>
                     ))}

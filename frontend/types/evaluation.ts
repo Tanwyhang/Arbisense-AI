@@ -519,18 +519,46 @@ export interface StressTestScenario {
 
   // Results Under Stress
   results: {
+    // Core Performance (existing)
     total_return: number;
     max_drawdown: number;
     sharpe_ratio: number;
     win_rate: number;
     avg_trade_slippage_pct: number;
 
-    // Tail Risk
-    var_99: number;
-    cvar_99: number;
+    // NEW: Expected Value & Distribution
+    ev_cents: number;           // Expected Value in cents
+    std_dev: number;            // Standard deviation
+    skewness: number;           // Distribution skewness (3rd moment)
+    kurtosis: number;           // Distribution kurtosis (4th moment)
+
+    // NEW: Extended Risk Metrics
+    var_90: number;             // VaR at 90% confidence
+    var_95: number;             // VaR at 95% confidence
+    var_99: number;             // VaR at 99% confidence
+    var_999: number;            // VaR at 99.9% confidence (extreme tail)
+    cvar_95: number;            // CVaR / Expected Shortfall at 95%
+    cvar_99: number;            // CVaR / Expected Shortfall at 99%
+
+    // NEW: Risk-Adjusted Returns
+    sortino_ratio: number;      // Return / Downside deviation
+    calmar_ratio: number;       // CAGR / Max Drawdown
+    profit_factor: number;      // Gross profits / Gross losses
+
+    // NEW: Trade Rates
+    loss_rate: number;          // Percentage of losing trades
+    zero_rate: number;          // Percentage of no-trade scenarios
+    max_gain: number;           // Maximum single gain
+
+    // NEW: Latency Metrics
+    latency_p50_ms: number;     // Median execution latency
+    latency_p95_ms: number;     // 95th percentile latency
+    latency_p99_ms: number;     // 99th percentile latency
+
+    // Tail Risk (existing)
     tail_loss_probability: number;
 
-    // Survival
+    // Survival (existing)
     survives_scenario: boolean;
     recovery_time_days: number;
     worst_single_trade: number;
@@ -562,15 +590,28 @@ export interface StressTestSuite {
     black_swan: StressTestScenario[];          // Tail events
     liquidity_crisis: StressTestScenario[];    // DEX liquidity freeze
     gas_spiral: StressTestScenario[];         // Extreme gas prices
+    // NEW: From stress_tests context
+    adversarial_scenarios: StressTestScenario[]; // CorrelationSnap, GhostLiquidity, LatencyJitter, etc.
+    regime_spectrum: StressTestScenario[];       // Steady, Volatile, FlashCrash regime tests
   };
 
   // Aggregate Results
   aggregate_metrics: {
+    // Existing
     worst_case_return: number;
     worst_case_drawdown: number;
     average_drawdown_scenarios: number;
     scenario_survival_rate: number;
     tail_risk_exposure: number;
+    // NEW: From stress_tests context
+    mean_ev_cents: number;        // Average EV across scenarios
+    mean_sharpe: number;          // Average Sharpe ratio
+    mean_sortino: number;         // Average Sortino ratio
+    mean_calmar: number;          // Average Calmar ratio
+    mean_profit_factor: number;   // Average profit factor
+    mean_latency_p50_ms: number;  // Mean median latency
+    var_99_worst: number;         // Worst VaR 99% across scenarios
+    cvar_99_worst: number;        // Worst CVaR 99%
   };
 }
 

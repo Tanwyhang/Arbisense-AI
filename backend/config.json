@@ -7,7 +7,7 @@
     },
     "performance": {
         "max_compute_time_ms": 1100,
-        "monte_carlo_paths": 1000,
+        "monte_carlo_paths": 40,
         "warmup_paths": 10
     },
     "cors": {
@@ -27,5 +27,14 @@
         "default_pair": "USDC-USDT",
         "default_dex_a": "Camelot",
         "default_dex_b": "Sushiswap"
+    },
+    "optimizer": {
+        "default_model": "anthropic/claude-3.5-sonnet",
+        "fallback_model": "openai/gpt-4-turbo",
+        "max_iterations": 3,
+        "max_consensus_rounds": 5,
+        "convergence_threshold": 0.8,
+        "simulation_days": 30,
+        "agent_count": 5
     }
 }

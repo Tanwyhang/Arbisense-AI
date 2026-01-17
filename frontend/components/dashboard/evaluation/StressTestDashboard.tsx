@@ -29,6 +29,9 @@ export default function StressTestDashboard({ data }: StressTestDashboardProps) 
     { key: 'black_swan', label: 'Black Swan Events', scenarios: data.categories.black_swan },
     { key: 'liquidity', label: 'Liquidity Crisis', scenarios: data.categories.liquidity_crisis },
     { key: 'gas', label: 'Gas Spirals', scenarios: data.categories.gas_spiral },
+    // NEW: From stress_tests context
+    { key: 'adversarial', label: 'Adversarial Tests', scenarios: data.categories.adversarial_scenarios || [] },
+    { key: 'regime_spectrum', label: 'Regime Spectrum', scenarios: data.categories.regime_spectrum || [] },
   ];
 
   const displayedScenarios = selectedCategory
@@ -163,13 +166,13 @@ export default function StressTestDashboard({ data }: StressTestDashboardProps) 
         </div>
       </div>
 
-      {/* Aggregate Metrics */}
+      {/* Aggregate Metrics - Row 1: Core Risk */}
       <div style={{
         padding: 'var(--space-4)',
-        borderBottom: 'var(--border-thick)',
+        borderBottom: 'var(--border-thin)',
         background: 'var(--bg-layer-2)',
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
         gap: 'var(--space-3)'
       }}>
         <MetricBox
@@ -196,6 +199,52 @@ export default function StressTestDashboard({ data }: StressTestDashboardProps) 
           label="Tail Risk Exposure"
           value={`${(data.aggregate_metrics.tail_risk_exposure * 100).toFixed(1)}%`}
           negative={true}
+        />
+      </div>
+
+      {/* Aggregate Metrics - Row 2: From Stress Tests */}
+      <div style={{
+        padding: 'var(--space-4)',
+        borderBottom: 'var(--border-thick)',
+        background: 'var(--bg-layer-2)',
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+        gap: 'var(--space-3)'
+      }}>
+        <MetricBox
+          label="Mean EV (cents)"
+          value={`${(data.aggregate_metrics.mean_ev_cents ?? 0).toFixed(2)}¢`}
+          negative={false}
+        />
+        <MetricBox
+          label="Mean Sharpe"
+          value={(data.aggregate_metrics.mean_sharpe ?? 0).toFixed(3)}
+          negative={false}
+        />
+        <MetricBox
+          label="Mean Sortino"
+          value={(data.aggregate_metrics.mean_sortino ?? 0).toFixed(3)}
+          negative={false}
+        />
+        <MetricBox
+          label="Mean Calmar"
+          value={(data.aggregate_metrics.mean_calmar ?? 0).toFixed(3)}
+          negative={false}
+        />
+        <MetricBox
+          label="VaR 99% (Worst)"
+          value={`${(data.aggregate_metrics.var_99_worst ?? 0).toFixed(2)}%`}
+          negative={true}
+        />
+        <MetricBox
+          label="CVaR 99% (Worst)"
+          value={`${(data.aggregate_metrics.cvar_99_worst ?? 0).toFixed(2)}%`}
+          negative={true}
+        />
+        <MetricBox
+          label="Mean Latency p50"
+          value={`${(data.aggregate_metrics.mean_latency_p50_ms ?? 0).toFixed(0)}ms`}
+          negative={false}
         />
       </div>
 
@@ -417,7 +466,7 @@ export default function StressTestDashboard({ data }: StressTestDashboardProps) 
                   </div>
                 </div>
 
-                {/* Results */}
+                {/* Results - Expanded with stress test metrics */}
                 <div>
                   <div style={{
                     fontFamily: 'var(--font-display)',
@@ -436,12 +485,14 @@ export default function StressTestDashboard({ data }: StressTestDashboardProps) 
                     gap: 'var(--space-2)'
                   }}>
                     {[
+                      { label: 'EV (cents)', value: `${(scenario.results.ev_cents ?? 0).toFixed(3)}¢`, color: (scenario.results.ev_cents ?? 0) >= 0 ? 'var(--success-ag-green)' : 'var(--alert-signal-red)' },
                       { label: 'Total Return', value: `${scenario.results.total_return.toFixed(2)}%`, color: scenario.results.total_return >= 0 ? 'var(--success-ag-green)' : 'var(--alert-signal-red)' },
+                      { label: 'Sharpe Ratio', value: (scenario.results.sharpe_ratio ?? 0).toFixed(3), color: scenario.results.sharpe_ratio > 0 ? 'var(--success-ag-green)' : 'var(--alert-signal-red)' },
+                      { label: 'Sortino Ratio', value: (scenario.results.sortino_ratio ?? 0).toFixed(3), color: (scenario.results.sortino_ratio ?? 0) > 0 ? 'var(--success-ag-green)' : 'var(--alert-signal-red)' },
+                      { label: 'Calmar Ratio', value: (scenario.results.calmar_ratio ?? 0).toFixed(3), color: (scenario.results.calmar_ratio ?? 0) > 0 ? 'var(--success-ag-green)' : 'var(--alert-signal-red)' },
+                      { label: 'Profit Factor', value: (scenario.results.profit_factor ?? 0).toFixed(2), color: (scenario.results.profit_factor ?? 0) > 1 ? 'var(--success-ag-green)' : 'var(--alert-signal-red)' },
                       { label: 'Max Drawdown', value: `${scenario.results.max_drawdown.toFixed(2)}%`, color: 'var(--alert-signal-red)' },
-                      { label: 'Sharpe Ratio', value: scenario.results.sharpe_ratio.toFixed(3), color: scenario.results.sharpe_ratio > 0 ? 'var(--success-ag-green)' : 'var(--alert-signal-red)' },
-                      { label: 'Win Rate', value: `${(scenario.results.win_rate * 100).toFixed(1)}%`, color: scenario.results.win_rate > 0.5 ? 'var(--success-ag-green)' : 'var(--alert-signal-red)' },
-                      { label: 'Recovery Time', value: `${scenario.results.recovery_time_days} days`, color: 'var(--text-white)' },
-                      { label: 'Worst Trade', value: `$${scenario.results.worst_single_trade.toFixed(0)}`, color: 'var(--alert-signal-red)' },
+                      { label: 'Max Gain', value: `${(scenario.results.max_gain ?? 0).toFixed(2)}%`, color: 'var(--success-ag-green)' },
                     ].map(metric => (
                       <div key={metric.label} style={{
                         display: 'flex',
@@ -463,6 +514,118 @@ export default function StressTestDashboard({ data }: StressTestDashboardProps) 
                           fontSize: '0.75rem',
                           fontWeight: 600,
                           color: metric.color,
+                          fontFamily: 'var(--font-data)'
+                        }}>
+                          {metric.value}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Trade Rates & Risk */}
+                <div>
+                  <div style={{
+                    fontFamily: 'var(--font-display)',
+                    fontWeight: 700,
+                    fontSize: '0.75rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.1em',
+                    marginBottom: 'var(--space-2)',
+                    color: 'var(--text-muted)'
+                  }}>
+                    Rates & Risk
+                  </div>
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 'var(--space-2)'
+                  }}>
+                    {[
+                      { label: 'Win Rate', value: `${(scenario.results.win_rate * 100).toFixed(1)}%`, color: scenario.results.win_rate > 0.5 ? 'var(--success-ag-green)' : 'var(--alert-signal-red)' },
+                      { label: 'Loss Rate', value: `${((scenario.results.loss_rate ?? 0) * 100).toFixed(1)}%`, color: (scenario.results.loss_rate ?? 0) < 0.5 ? 'var(--success-ag-green)' : 'var(--alert-signal-red)' },
+                      { label: 'Zero Rate', value: `${((scenario.results.zero_rate ?? 0) * 100).toFixed(1)}%`, color: 'var(--text-white)' },
+                      { label: 'VaR 95%', value: `${(scenario.results.var_95 ?? 0).toFixed(2)}%`, color: 'var(--alert-signal-red)' },
+                      { label: 'VaR 99%', value: `${(scenario.results.var_99 ?? 0).toFixed(2)}%`, color: 'var(--alert-signal-red)' },
+                      { label: 'CVaR 95%', value: `${(scenario.results.cvar_95 ?? 0).toFixed(2)}%`, color: 'var(--alert-signal-red)' },
+                      { label: 'CVaR 99%', value: `${(scenario.results.cvar_99 ?? 0).toFixed(2)}%`, color: 'var(--alert-signal-red)' },
+                      { label: 'Recovery', value: `${scenario.results.recovery_time_days} days`, color: 'var(--text-white)' },
+                    ].map(metric => (
+                      <div key={metric.label} style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        padding: 'var(--space-2)',
+                        border: 'var(--border-thin)',
+                        background: 'var(--bg-layer-1)'
+                      }}>
+                        <div style={{
+                          fontSize: '0.7rem',
+                          fontWeight: 600,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          color: 'var(--text-muted)'
+                        }}>
+                          {metric.label}
+                        </div>
+                        <div style={{
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          color: metric.color,
+                          fontFamily: 'var(--font-data)'
+                        }}>
+                          {metric.value}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Latency & Distribution */}
+                <div>
+                  <div style={{
+                    fontFamily: 'var(--font-display)',
+                    fontWeight: 700,
+                    fontSize: '0.75rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.1em',
+                    marginBottom: 'var(--space-2)',
+                    color: 'var(--text-muted)'
+                  }}>
+                    Latency & Distribution
+                  </div>
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 'var(--space-2)'
+                  }}>
+                    {[
+                      { label: 'Latency p50', value: `${(scenario.results.latency_p50_ms ?? 0).toFixed(0)}ms` },
+                      { label: 'Latency p95', value: `${(scenario.results.latency_p95_ms ?? 0).toFixed(0)}ms` },
+                      { label: 'Latency p99', value: `${(scenario.results.latency_p99_ms ?? 0).toFixed(0)}ms` },
+                      { label: 'Skewness', value: (scenario.results.skewness ?? 0).toFixed(3) },
+                      { label: 'Kurtosis', value: (scenario.results.kurtosis ?? 0).toFixed(3) },
+                      { label: 'Std Dev', value: (scenario.results.std_dev ?? 0).toFixed(4) },
+                    ].map(metric => (
+                      <div key={metric.label} style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        padding: 'var(--space-2)',
+                        border: 'var(--border-thin)',
+                        background: 'var(--bg-layer-1)'
+                      }}>
+                        <div style={{
+                          fontSize: '0.7rem',
+                          fontWeight: 600,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          color: 'var(--text-muted)'
+                        }}>
+                          {metric.label}
+                        </div>
+                        <div style={{
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          color: 'var(--text-white)',
                           fontFamily: 'var(--font-data)'
                         }}>
                           {metric.value}

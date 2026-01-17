@@ -459,6 +459,63 @@ code, .mono {
   50% { opacity: 0.4; }
 }
 
+/* Widget Tween Animation System - Hyprland-inspired */
+@keyframes widget-move-up {
+  0% { transform: translateY(0); }
+  30% { transform: translateY(-8px) scale(1.01); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+@keyframes widget-move-down {
+  0% { transform: translateY(0); }
+  30% { transform: translateY(8px) scale(1.01); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+@keyframes widget-move-left {
+  0% { transform: translateX(0); }
+  30% { transform: translateX(-12px) scale(1.01); }
+  100% { transform: translateX(0) scale(1); }
+}
+
+@keyframes widget-move-right {
+  0% { transform: translateX(0); }
+  30% { transform: translateX(12px) scale(1.01); }
+  100% { transform: translateX(0) scale(1); }
+}
+
+@keyframes widget-swap-glow {
+  0% { box-shadow: 0 0 0 0 rgba(0, 255, 255, 0); }
+  50% { box-shadow: 0 0 20px 4px rgba(0, 255, 255, 0.4); }
+  100% { box-shadow: 0 0 0 0 rgba(0, 255, 255, 0); }
+}
+
+/* Widget container smooth layout transitions */
+.widget-container {
+  transition: 
+    transform 280ms cubic-bezier(0.05, 0.9, 0.1, 1.05),
+    box-shadow 280ms cubic-bezier(0.05, 0.9, 0.1, 1.05),
+    border-color 280ms cubic-bezier(0.05, 0.9, 0.1, 1.05),
+    opacity 200ms ease-out;
+  will-change: transform, box-shadow, opacity;
+}
+
+.widget-container.animating-move {
+  animation: widget-swap-glow 350ms cubic-bezier(0.05, 0.9, 0.1, 1.05);
+}
+
+/* Column containers for smooth reflow */
+#col1_container,
+#col2_container,
+#col3_container,
+#col4_container,
+#fullwidth_container,
+#sidebar_container {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
 /* Corner Accent */
 .corner-accent {
   position: relative;
