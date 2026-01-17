@@ -7,7 +7,7 @@
     },
     "performance": {
         "max_compute_time_ms": 1100,
-        "monte_carlo_paths": 80,
+        "monte_carlo_paths": 1000,
         "warmup_paths": 10
     },
     "cors": {

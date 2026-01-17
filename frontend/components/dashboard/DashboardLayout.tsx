@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -57,11 +57,14 @@ import { generateSyntheticBacktest, generateModelComparison, generateStressTestS
 
 const OpportunityWidget = ({ data }: { data: SimulationResponse }) => (
   <div className="panel-body" style={{ padding: 0 }}>
-     <div className="grid-4" style={{
+
+     <div style={{
+            display: 'grid',
             border: 'none',
             background: 'transparent',
             padding: 0,
-            gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))'
+            gap: '1px',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))'
           }}>
             {/* Trading Pair */}
             <div style={{
@@ -158,7 +161,7 @@ const PipelinePerfWidget = ({ data }: { data: SimulationResponse }) => (
         }}>
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))',
             gap: 'var(--space-3)',
             marginBottom: 'var(--space-3)'
           }}>
@@ -293,46 +296,70 @@ const WIDGET_TITLES: Record<WidgetType, string> = {
 };
 
 // Layout presets
-const PRESETS: Record<LayoutPreset, { sidebar: WidgetType[]; left: WidgetType[]; right: WidgetType[] }> = {
+const PRESETS: Record<LayoutPreset, { sidebar: WidgetType[]; col1: WidgetType[]; col2: WidgetType[]; col3: WidgetType[]; col4: WidgetType[]; fullWidth: WidgetType[] }> = {
   DEFAULT: {
     sidebar: [],
-    left: ['opportunity', 'consensus', 'kelly'],
-    right: ['monte_carlo', 'revenue', 'pipeline_perf'],
+    col1: ['opportunity'],
+    col2: ['consensus', 'kelly'],
+    col3: ['revenue'],
+    col4: ['pipeline_perf'],
+    fullWidth: ['monte_carlo'],
   },
   EXECUTION: {
     sidebar: [],
-    left: ['opportunity', 'consensus', 'pipeline_perf'],
-    right: ['kelly', 'revenue', 'monte_carlo'],
+    col1: ['opportunity'],
+    col2: ['consensus'],
+    col3: ['kelly'],
+    col4: ['revenue', 'pipeline_perf'],
+    fullWidth: ['monte_carlo'],
   },
   ANALYTICAL: {
     sidebar: [],
-    left: ['monte_carlo', 'revenue'],
-    right: ['opportunity', 'consensus', 'kelly', 'pipeline_perf'],
+    col1: ['opportunity'],
+    col2: ['consensus'],
+    col3: ['kelly'],
+    col4: ['pipeline_perf'],
+    fullWidth: ['monte_carlo', 'revenue'],
   },
   STACKED: {
     sidebar: [],
-    left: ['opportunity', 'consensus', 'kelly', 'monte_carlo', 'revenue', 'pipeline_perf'],
-    right: [],
+    col1: [],
+    col2: [],
+    col3: [],
+    col4: [],
+    fullWidth: ['opportunity', 'consensus', 'kelly', 'monte_carlo', 'revenue', 'pipeline_perf'],
   },
   COMPREHENSIVE: {
     sidebar: [],
-    left: ['polymarket_prices', 'arbitrage_opportunities', 'spread_monitor'],
-    right: ['limitless_pools', 'profit_calculator', 'pipeline_perf'],
+    col1: ['polymarket_prices'],
+    col2: ['arbitrage_opportunities'],
+    col3: ['spread_monitor', 'limitless_pools'],
+    col4: ['profit_calculator', 'pipeline_perf'],
+    fullWidth: [],
   },
   TRADING: {
     sidebar: [],
-    left: ['polymarket_prices', 'polymarket_orderbook', 'polymarket_trades'],
-    right: ['limitless_pools', 'limitless_prices', 'arbitrage_opportunities'],
+    col1: ['polymarket_prices'],
+    col2: ['polymarket_orderbook', 'polymarket_trades'],
+    col3: ['limitless_pools', 'limitless_prices'],
+    col4: ['arbitrage_opportunities'],
+    fullWidth: [],
   },
   ANALYTICS: {
     sidebar: [],
-    left: ['backtest_summary', 'stress_test'],
-    right: ['model_variant_comparison', 'statistical_tests'],
+    col1: ['backtest_summary'],
+    col2: ['stress_test'],
+    col3: ['model_variant_comparison'],
+    col4: ['statistical_tests'],
+    fullWidth: [],
   },
   ARBITRAGE: {
     sidebar: [],
-    left: ['arbitrage_opportunities', 'spread_monitor'],
-    right: ['profit_calculator', 'polymarket_prices'],
+    col1: ['arbitrage_opportunities'],
+    col2: ['spread_monitor'],
+    col3: ['profit_calculator'],
+    col4: ['polymarket_prices'],
+    fullWidth: [],
   },
 };
 
@@ -345,8 +372,161 @@ interface DashboardLayoutProps {
 }
 
 export default function DashboardLayout({ data }: DashboardLayoutProps) {
-  const [items, setItems] = useState<{ sidebar: WidgetType[]; left: WidgetType[]; right: WidgetType[] }>(PRESETS.DEFAULT);
+  const [items, setItems] = useState<{ sidebar: WidgetType[]; col1: WidgetType[]; col2: WidgetType[]; col3: WidgetType[]; col4: WidgetType[]; fullWidth: WidgetType[] }>(PRESETS.DEFAULT);
   const [activeId, setActiveId] = useState<WidgetType | null>(null);
+  const [focusedWidget, setFocusedWidget] = useState<WidgetType | null>(null);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Get all widgets in order for Tab navigation
+  const getAllWidgets = useCallback(() => {
+    return [...items.fullWidth, ...items.col1, ...items.col2, ...items.col3, ...items.col4, ...items.sidebar];
+  }, [items]);
+
+  // Find which container a widget is in
+  const findContainer = useCallback((widgetId: WidgetType): 'fullWidth' | 'col1' | 'col2' | 'col3' | 'col4' | 'sidebar' | null => {
+    if (items.fullWidth.includes(widgetId)) return 'fullWidth';
+    if (items.col1.includes(widgetId)) return 'col1';
+    if (items.col2.includes(widgetId)) return 'col2';
+    if (items.col3.includes(widgetId)) return 'col3';
+    if (items.col4.includes(widgetId)) return 'col4';
+    if (items.sidebar.includes(widgetId)) return 'sidebar';
+    return null;
+  }, [items]);
+
+  // Move widget within container (j/k - up/down)
+  const moveWithinContainer = useCallback((direction: 'up' | 'down') => {
+    if (!focusedWidget) return;
+    
+    const container = findContainer(focusedWidget);
+    if (!container) return;
+
+    const containerItems = items[container];
+    const currentIndex = containerItems.indexOf(focusedWidget);
+    const newIndex = direction === 'up' 
+      ? Math.max(0, currentIndex - 1)
+      : Math.min(containerItems.length - 1, currentIndex + 1);
+
+    if (currentIndex !== newIndex) {
+      setIsAnimating(true);
+      setItems(prev => {
+        const newContainerItems = [...prev[container]];
+        [newContainerItems[currentIndex], newContainerItems[newIndex]] = 
+        [newContainerItems[newIndex], newContainerItems[currentIndex]];
+        return { ...prev, [container]: newContainerItems };
+      });
+      setTimeout(() => setIsAnimating(false), 250);
+    }
+  }, [focusedWidget, findContainer, items]);
+
+  // Move widget between containers (h/l - left/right)
+  const moveBetweenContainers = useCallback((direction: 'left' | 'right') => {
+    if (!focusedWidget) return;
+    
+    const container = findContainer(focusedWidget);
+    if (!container) return;
+
+    // Define container order: fullWidth -> col1 <-> col2 <-> col3 <-> col4 (sidebar is special)
+    const containerOrder: ('fullWidth' | 'col1' | 'col2' | 'col3' | 'col4')[] = ['col1', 'col2', 'col3', 'col4'];
+    const currentContainerIndex = containerOrder.indexOf(container as any);
+    
+    let targetContainer: 'fullWidth' | 'col1' | 'col2' | 'col3' | 'col4' | 'sidebar';
+    
+    if (container === 'fullWidth') {
+      // From fullWidth, h goes to col1, l goes to col4 (wrap) or col1? Let's go col1
+      targetContainer = direction === 'left' ? 'col1' : 'col4';
+    } else if (container === 'sidebar') {
+      // From sidebar, always go to col4
+      targetContainer = 'col4';
+    } else {
+      // Between columns
+      if (direction === 'left' && container === 'col1') {
+        targetContainer = 'fullWidth'; // Move to fullWidth
+      } else if (direction === 'right' && container === 'col4') {
+        targetContainer = 'fullWidth'; // Move to fullWidth
+      } else {
+        const newIndex = direction === 'left' 
+          ? Math.max(0, currentContainerIndex - 1)
+          : Math.min(containerOrder.length - 1, currentContainerIndex + 1);
+        targetContainer = containerOrder[newIndex];
+      }
+    }
+
+    if (targetContainer !== container) {
+      setIsAnimating(true);
+      setItems(prev => {
+        const sourceItems = [...prev[container]];
+        const targetItems = [...prev[targetContainer]];
+        
+        sourceItems.splice(sourceItems.indexOf(focusedWidget), 1);
+        targetItems.push(focusedWidget);
+        
+        return {
+          ...prev,
+          [container]: sourceItems,
+          [targetContainer]: targetItems
+        };
+      });
+      setTimeout(() => setIsAnimating(false), 250);
+    }
+  }, [focusedWidget, findContainer]);
+
+  // Keyboard event handler
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      
+      const allWidgets = getAllWidgets();
+      if (allWidgets.length === 0) return;
+
+      switch (e.key.toLowerCase()) {
+        case 'tab':
+          e.preventDefault();
+          // Cycle through widgets
+          if (!focusedWidget) {
+            setFocusedWidget(allWidgets[0]);
+          } else {
+            const currentIndex = allWidgets.indexOf(focusedWidget);
+            const nextIndex = e.shiftKey 
+              ? (currentIndex - 1 + allWidgets.length) % allWidgets.length
+              : (currentIndex + 1) % allWidgets.length;
+            setFocusedWidget(allWidgets[nextIndex]);
+          }
+          break;
+        case 'j': // Move down
+          if (focusedWidget) {
+            e.preventDefault();
+            moveWithinContainer('down');
+          }
+          break;
+        case 'k': // Move up
+          if (focusedWidget) {
+            e.preventDefault();
+            moveWithinContainer('up');
+          }
+          break;
+        case 'h': // Move left
+          if (focusedWidget) {
+            e.preventDefault();
+            moveBetweenContainers('left');
+          }
+          break;
+        case 'l': // Move right
+          if (focusedWidget) {
+            e.preventDefault();
+            moveBetweenContainers('right');
+          }
+          break;
+        case 'escape':
+          setFocusedWidget(null);
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [focusedWidget, getAllWidgets, moveWithinContainer, moveBetweenContainers]);
   
   // Synthetic data for evaluation components
   const [syntheticData] = useState(() => {
@@ -430,13 +610,17 @@ export default function DashboardLayout({ data }: DashboardLayoutProps) {
     const overId = over.id as string;
 
     // Find source and destiny containers
-    const findContainer = (id: string): 'sidebar' | 'left' | 'right' | undefined => {
+    const findContainer = (id: string): 'sidebar' | 'col1' | 'col2' | 'col3' | 'col4' | undefined => {
       if (items.sidebar.includes(id as WidgetType)) return 'sidebar';
-      if (items.left.includes(id as WidgetType)) return 'left';
-      if (items.right.includes(id as WidgetType)) return 'right';
+      if (items.col1.includes(id as WidgetType)) return 'col1';
+      if (items.col2.includes(id as WidgetType)) return 'col2';
+      if (items.col3.includes(id as WidgetType)) return 'col3';
+      if (items.col4.includes(id as WidgetType)) return 'col4';
       if (id === 'sidebar_container') return 'sidebar';
-      if (id === 'left_container') return 'left';
-      if (id === 'right_container') return 'right';
+      if (id === 'col1_container') return 'col1';
+      if (id === 'col2_container') return 'col2';
+      if (id === 'col3_container') return 'col3';
+      if (id === 'col4_container') return 'col4';
       return undefined;
     };
 
@@ -518,8 +702,23 @@ export default function DashboardLayout({ data }: DashboardLayoutProps) {
         alignItems: 'center',
         flexWrap: 'wrap'
       }}>
-        <div style={{ marginRight: 'auto', fontFamily: 'var(--font-data)', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-          LAYOUT PRESETS:
+        <div style={{ marginRight: 'auto', display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
+          <span style={{ fontFamily: 'var(--font-data)', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+            LAYOUT PRESETS:
+          </span>
+          <span style={{ 
+            fontFamily: 'var(--font-data)', 
+            fontSize: '0.65rem', 
+            color: focusedWidget ? 'var(--accent-cyan)' : 'var(--text-muted)',
+            opacity: 0.7,
+            padding: '2px 8px',
+            background: focusedWidget ? 'rgba(0, 255, 255, 0.1)' : 'transparent',
+            borderRadius: '3px',
+            border: focusedWidget ? '1px solid var(--accent-cyan)' : '1px solid transparent',
+            transition: 'all 220ms cubic-bezier(0.05, 0.9, 0.1, 1.05)'
+          }}>
+            ⌨ Tab: select • H←  J↓  K↑  L→: move • Esc: deselect
+          </span>
         </div>
         {(Object.keys(PRESETS) as LayoutPreset[]).map(preset => (
           <button
@@ -550,6 +749,42 @@ export default function DashboardLayout({ data }: DashboardLayoutProps) {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
+        {/* Full-Width Section (e.g., Monte Carlo) */}
+        {items.fullWidth && items.fullWidth.length > 0 && (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(12, 1fr)',
+            gap: 'var(--space-4)',
+            marginBottom: 'var(--space-4)'
+          }}>
+            {/* Sidebar spacer */}
+            <div style={{ gridColumn: 'span 2' }} />
+            
+            {/* Full-width widgets */}
+            <div style={{ gridColumn: 'span 10' }}>
+              <SortableContext
+                id="fullwidth_container"
+                items={items.fullWidth}
+                strategy={verticalListSortingStrategy}
+              >
+                <div id="fullwidth_container">
+                  {items.fullWidth.map(id => (
+                    <SortableWidget 
+                      key={id} 
+                      id={id} 
+                      title={WIDGET_TITLES[id]}
+                      isFocused={focusedWidget === id}
+                      onClick={() => setFocusedWidget(id)}
+                    >
+                      {renderWidget(id)}
+                    </SortableWidget>
+                  ))}
+                </div>
+              </SortableContext>
+            </div>
+          </div>
+        )}
+
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(12, 1fr)',
@@ -581,7 +816,14 @@ export default function DashboardLayout({ data }: DashboardLayoutProps) {
                     border: '1px dashed var(--border-dim)'
                   }}>
                     {items.sidebar.map(id => (
-                    <SortableWidget key={id} id={id} title={WIDGET_TITLES[id]} minimal={true}>
+                    <SortableWidget 
+                      key={id} 
+                      id={id} 
+                      title={WIDGET_TITLES[id]} 
+                      minimal={true}
+                      isFocused={focusedWidget === id}
+                      onClick={() => setFocusedWidget(id)}
+                    >
                         {null}
                     </SortableWidget>
                     ))}
@@ -592,42 +834,58 @@ export default function DashboardLayout({ data }: DashboardLayoutProps) {
               </SortableContext>
           </div>
 
-          {/* Left Pane */}
-          <div style={{ gridColumn: 'span 4' }}>
-              <SortableContext
-                id="left_container"
-                items={items.left}
-                strategy={verticalListSortingStrategy}
-              >
-                  <div id="left_container" style={{ minHeight: '100%' }}>
-                    {items.left.map(id => (
-                    <SortableWidget key={id} id={id} title={WIDGET_TITLES[id]}>
+          {/* Col 1 */}
+          <div style={{ gridColumn: 'span 2' }}>
+              <SortableContext id="col1_container" items={items.col1} strategy={verticalListSortingStrategy}>
+                  <div id="col1_container" style={{ minHeight: '100%' }}>
+                    {items.col1.map(id => (
+                    <SortableWidget key={id} id={id} title={WIDGET_TITLES[id]} isFocused={focusedWidget === id} onClick={() => setFocusedWidget(id)}>
                         {renderWidget(id)}
                     </SortableWidget>
                     ))}
-                    {items.left.length === 0 && (
-                        <DroppablePlaceholder id="left_container" label="Drop widgets here" />
-                    )}
+                    {items.col1.length === 0 && <DroppablePlaceholder id="col1_container" label="Col 1" />}
                   </div>
               </SortableContext>
           </div>
 
-          {/* Right Pane */}
-          <div style={{ gridColumn: 'span 6' }}>
-              <SortableContext
-                id="right_container"
-                items={items.right}
-                strategy={verticalListSortingStrategy}
-              >
-                 <div id="right_container" style={{ minHeight: '100%' }}>
-                    {items.right.map(id => (
-                    <SortableWidget key={id} id={id} title={WIDGET_TITLES[id]}>
+          {/* Col 2 */}
+          <div style={{ gridColumn: 'span 3' }}>
+              <SortableContext id="col2_container" items={items.col2} strategy={verticalListSortingStrategy}>
+                  <div id="col2_container" style={{ minHeight: '100%' }}>
+                    {items.col2.map(id => (
+                    <SortableWidget key={id} id={id} title={WIDGET_TITLES[id]} isFocused={focusedWidget === id} onClick={() => setFocusedWidget(id)}>
                         {renderWidget(id)}
                     </SortableWidget>
                     ))}
-                       {items.right.length === 0 && (
-                        <DroppablePlaceholder id="right_container" label="Drop widgets here" />
-                    )}
+                    {items.col2.length === 0 && <DroppablePlaceholder id="col2_container" label="Col 2" />}
+                  </div>
+              </SortableContext>
+          </div>
+
+          {/* Col 3 */}
+          <div style={{ gridColumn: 'span 3' }}>
+              <SortableContext id="col3_container" items={items.col3} strategy={verticalListSortingStrategy}>
+                  <div id="col3_container" style={{ minHeight: '100%' }}>
+                    {items.col3.map(id => (
+                    <SortableWidget key={id} id={id} title={WIDGET_TITLES[id]} isFocused={focusedWidget === id} onClick={() => setFocusedWidget(id)}>
+                        {renderWidget(id)}
+                    </SortableWidget>
+                    ))}
+                    {items.col3.length === 0 && <DroppablePlaceholder id="col3_container" label="Col 3" />}
+                  </div>
+              </SortableContext>
+          </div>
+
+          {/* Col 4 */}
+          <div style={{ gridColumn: 'span 2' }}>
+              <SortableContext id="col4_container" items={items.col4} strategy={verticalListSortingStrategy}>
+                  <div id="col4_container" style={{ minHeight: '100%' }}>
+                    {items.col4.map(id => (
+                    <SortableWidget key={id} id={id} title={WIDGET_TITLES[id]} isFocused={focusedWidget === id} onClick={() => setFocusedWidget(id)}>
+                        {renderWidget(id)}
+                    </SortableWidget>
+                    ))}
+                    {items.col4.length === 0 && <DroppablePlaceholder id="col4_container" label="Col 4" />}
                   </div>
               </SortableContext>
           </div>

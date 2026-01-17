@@ -19,19 +19,32 @@ export default function RevenueProjectionViz({ data }: RevenueProjectionVizProps
     let cumulative = 0;
     return scenario.daily_revenue.map(daily => {
       cumulative += daily;
-      return cumulative;
+    return cumulative;
     });
-  });
+  }).filter(val => Number.isFinite(val));
 
-  const minRevenue = Math.min(...allCumulativeRevenues, 0);
-  const maxRevenue = Math.max(...allCumulativeRevenues);
+  // Handle edge case where all revenues are 0 or range is 0
+  const minVal = Math.min(...allCumulativeRevenues, 0);
+  const maxVal = Math.max(...allCumulativeRevenues);
+  
+  // Ensure we have a valid range to avoid division by zero
+  const range = maxVal - minVal;
+  const minRevenue = range === 0 ? 0 : minVal;
+  const maxRevenue = range === 0 ? 100 : maxVal;
 
-  const numDays = data.scenarios[0]?.daily_revenue.length || 30;
+  const numDays = Math.max(data.scenarios[0]?.daily_revenue.length || 30, 2); // Ensure at least 2 points for line
 
-  // Scale functions
-  const scaleX = (day: number) => padding.left + (day / (numDays - 1)) * chartWidth;
-  const scaleY = (revenue: number) =>
-    padding.top + chartHeight - ((revenue - minRevenue) / (maxRevenue - minRevenue)) * chartHeight;
+  // Scale functions with NaN protection
+  const scaleX = (day: number) => {
+    const val = padding.left + (day / (numDays - 1)) * chartWidth;
+    return isNaN(val) ? padding.left : val;
+  };
+  
+  const scaleY = (revenue: number) => {
+    const revenueRange = maxRevenue - minRevenue;
+    const val = padding.top + chartHeight - ((revenue - minRevenue) / (revenueRange || 1)) * chartHeight;
+    return isNaN(val) ? padding.top + chartHeight : val;
+  };
 
   // Scenario colors - brutalist palette
   const scenarioColors: Record<string, string> = {

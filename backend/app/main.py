@@ -300,14 +300,23 @@ async def websocket_market_data(websocket: WebSocket):
     
     logger.info("Market data WebSocket client connected")
     
+    push_task = None
+    
     try:
-        # Send initial status
-        await websocket.send_json({
-            "type": "connection_status",
-            "status": "connected",
-            "message": "Connected to market data stream",
-            "timestamp": int(time.time() * 1000)
-        })
+        # Small delay to ensure connection is fully established (helps with proxies)
+        await asyncio.sleep(0.05)
+        
+        # Check if connection is still open before sending
+        try:
+            await websocket.send_json({
+                "type": "connection_status",
+                "status": "connected",
+                "message": "Connected to market data stream",
+                "timestamp": int(time.time() * 1000)
+            })
+        except Exception as e:
+            logger.warning(f"Failed to send initial status: {e}")
+            return
         
         # Start periodic data push
         async def push_data():
@@ -324,7 +333,7 @@ async def websocket_market_data(websocket: WebSocket):
                 except asyncio.CancelledError:
                     break
                 except Exception as e:
-                    logger.error(f"Push error: {e}")
+                    logger.debug(f"Push data loop ended: {e}")
                     break
         
         push_task = asyncio.create_task(push_data())
@@ -353,13 +362,18 @@ async def websocket_market_data(websocket: WebSocket):
                     })
                     
         except WebSocketDisconnect:
-            pass
-        finally:
-            push_task.cancel()
+            logger.debug("Market data WebSocket client disconnected gracefully")
             
     except Exception as e:
-        logger.error(f"Market data WebSocket error: {e}")
+        if str(e):  # Only log if there's an actual error message
+            logger.error(f"Market data WebSocket error: {e}")
     finally:
+        if push_task:
+            push_task.cancel()
+            try:
+                await push_task
+            except asyncio.CancelledError:
+                pass
         await ws_manager.remove_client(websocket)
         logger.info("Market data WebSocket client disconnected")
 
@@ -379,17 +393,26 @@ async def websocket_arbitrage(websocket: WebSocket):
     
     logger.info("Arbitrage WebSocket client connected")
     
+    push_task = None
+    
     try:
+        # Small delay to ensure connection is fully established (helps with proxies)
+        await asyncio.sleep(0.05)
+        
         # Send initial status
         engine = get_arbitrage_engine()
         
-        await websocket.send_json({
-            "type": "connection_status",
-            "status": "connected",
-            "message": "Connected to arbitrage stream",
-            "engine_status": engine.get_status(),
-            "timestamp": int(time.time() * 1000)
-        })
+        try:
+            await websocket.send_json({
+                "type": "connection_status",
+                "status": "connected",
+                "message": "Connected to arbitrage stream",
+                "engine_status": engine.get_status(),
+                "timestamp": int(time.time() * 1000)
+            })
+        except Exception as e:
+            logger.warning(f"Failed to send initial arbitrage status: {e}")
+            return
         
         # Start periodic data push
         async def push_arb_data():
@@ -401,7 +424,7 @@ async def websocket_arbitrage(websocket: WebSocket):
                 except asyncio.CancelledError:
                     break
                 except Exception as e:
-                    logger.error(f"Arb push error: {e}")
+                    logger.debug(f"Arb push loop ended: {e}")
                     break
         
         push_task = asyncio.create_task(push_arb_data())
@@ -438,13 +461,18 @@ async def websocket_arbitrage(websocket: WebSocket):
                     })
                     
         except WebSocketDisconnect:
-            pass
-        finally:
-            push_task.cancel()
+            logger.debug("Arbitrage WebSocket client disconnected gracefully")
             
     except Exception as e:
-        logger.error(f"Arbitrage WebSocket error: {e}")
+        if str(e):  # Only log if there's an actual error message
+            logger.error(f"Arbitrage WebSocket error: {e}")
     finally:
+        if push_task:
+            push_task.cancel()
+            try:
+                await push_task
+            except asyncio.CancelledError:
+                pass
         logger.info("Arbitrage WebSocket client disconnected")
 
 

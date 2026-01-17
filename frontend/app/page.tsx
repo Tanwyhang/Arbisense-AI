@@ -688,10 +688,53 @@ export default function HomePage() {
               <div style={{ color: '#666666', marginBottom: '8px' }}>
                 /// SYSTEM STATUS
               </div>
-              <div>MULTI-AGENT CONSENSUS: <span style={{ color: '#00ff88' }}>ACTIVE</span></div>
-              <div>MONTE CARLO SIMULATION: <span style={{ color: '#00ff88' }}>RUNNING</span></div>
+              <div>RING CONSENSUS: <span style={{ color: '#00ff88' }}>5 AGENTS ONLINE</span></div>
+              <div>MONTE CARLO: <span style={{ color: '#00ff88' }}>1000 PATHS</span></div>
               <div>KELLY OPTIMIZER: <span style={{ color: '#00ff88' }}>ENABLED</span></div>
-              <div>STRESS TEST ENGINE: <span style={{ color: '#00ff88' }}>READY</span></div>
+              <div>STRESS ENGINE: <span style={{ color: '#00ff88' }}>READY</span></div>
+              
+              {/* Agent Status Ring */}
+              <div style={{ 
+                marginTop: '16px', 
+                padding: '12px',
+                background: 'rgba(0, 102, 255, 0.05)',
+                border: '1px solid rgba(0, 102, 255, 0.2)',
+                borderRadius: '4px'
+              }}>
+                <div style={{ color: '#666666', marginBottom: '8px', fontSize: '10px' }}>
+                  /// AI RING TOPOLOGY
+                </div>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {[
+                    { name: 'PROFIT', color: '#00ff88', status: 'TX' },
+                    { name: 'RISK', color: '#ff3d3d', status: 'RX' },
+                    { name: 'GAS', color: '#00d4ff', status: 'TX' },
+                    { name: 'MARKET', color: '#ffd700', status: 'RX' },
+                    { name: 'META', color: '#a855f7', status: 'TX' },
+                  ].map((agent, i) => (
+                    <div key={i} style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '4px',
+                      padding: '4px 8px',
+                      background: 'rgba(0, 0, 0, 0.4)',
+                      border: `1px solid ${agent.color}30`,
+                      borderRadius: '2px'
+                    }}>
+                      <span style={{ 
+                        width: '6px', 
+                        height: '6px', 
+                        background: agent.color,
+                        borderRadius: '50%',
+                        animation: 'pulse 1.5s ease-in-out infinite',
+                        animationDelay: `${i * 0.3}s`
+                      }}></span>
+                      <span style={{ color: agent.color, fontSize: '9px' }}>{agent.name}</span>
+                      <span style={{ color: '#666666', fontSize: '8px' }}>[{agent.status}]</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
           </div> {/* End Content Wrapper */}
@@ -750,60 +793,108 @@ export default function HomePage() {
             {[
               {
                 num: '01',
-                title: 'REALTIME ANALYSIS',
-                desc: 'Multi-agent consensus with 2/3 approval. Sub-1100ms execution.'
+                title: 'AI RING OPTIMIZER',
+                desc: '5-agent ring consensus. ProfitMax, RiskAverse, GasEfficient, MarketAnalyst, MetaLearner.',
+                highlight: true
               },
               {
                 num: '02',
                 title: 'MONTE CARLO',
-                desc: '80-path Lévy flights. CVaR, VaR, fat-tail capture.'
+                desc: '1000-path Lévy flights (α=1.7). CVaR, VaR, fat-tail capture.',
+                highlight: false
               },
               {
                 num: '03',
                 title: 'KELLY CRITERION',
-                desc: 'Optimal position sizing. Correlation adjustments.'
+                desc: 'Optimal position sizing. Correlation adjustments.',
+                highlight: false
               },
               {
                 num: '04',
                 title: 'STRESS TESTING',
-                desc: '2008, 2020 crashes. Black swan scenarios.'
+                desc: '2008, 2020 crashes. Black swan scenarios.',
+                highlight: false
               },
               {
                 num: '05',
-                title: 'PHD METRICS',
-                desc: 'Normality, stationarity, heteroskedasticity tests.'
+                title: 'QUANT METRICS',
+                desc: 'Normality, stationarity, heteroskedasticity tests.',
+                highlight: false
               },
               {
                 num: '06',
                 title: 'DATA EXPORT',
-                desc: 'Structured JSON. CSV tables. API-ready.'
+                desc: 'Structured JSON. CSV tables. API-ready.',
+                highlight: false
+              },
+              {
+                num: '07',
+                title: 'PARAMETER TUNING',
+                desc: 'AI-driven optimization. Backtest validation. Approval workflow.',
+                highlight: true
+              },
+              {
+                num: '08',
+                title: 'REALTIME ANALYSIS',
+                desc: 'Multi-agent consensus with 2/3 approval. Sub-1100ms execution.',
+                highlight: false
+              },
+              {
+                num: '09',
+                title: 'CROSS-PLATFORM ARB',
+                desc: 'Polymarket + Limitless. Fee-adjusted profit calc.',
+                highlight: false
               }
             ].map((feature, i) => (
               <div
                 key={i}
                 style={{
                   padding: '40px 32px',
-                  background: '#000000',
-                  border: '1px solid transparent',
+                  background: feature.highlight ? 'rgba(0, 102, 255, 0.05)' : '#000000',
+                  border: feature.highlight ? '1px solid rgba(0, 212, 255, 0.3)' : '1px solid transparent',
                   transition: 'all 0.3s ease',
                   opacity: 0,
                   animation: `fade-in 0.6s ease-out ${0.2 + i * 0.1}s forwards`,
-                  cursor: 'default'
+                  cursor: 'default',
+                  position: 'relative' as const,
+                  boxShadow: feature.highlight ? '0 0 30px rgba(0, 212, 255, 0.1)' : 'none'
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = '#0066ff';
-                  e.currentTarget.style.background = '#0a0a0a';
+                  e.currentTarget.style.borderColor = feature.highlight ? '#00d4ff' : '#0066ff';
+                  e.currentTarget.style.background = feature.highlight ? 'rgba(0, 102, 255, 0.1)' : '#0a0a0a';
+                  e.currentTarget.style.boxShadow = feature.highlight ? '0 0 40px rgba(0, 212, 255, 0.2)' : 'none';
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = 'transparent';
-                  e.currentTarget.style.background = '#000000';
+                  e.currentTarget.style.borderColor = feature.highlight ? 'rgba(0, 212, 255, 0.3)' : 'transparent';
+                  e.currentTarget.style.background = feature.highlight ? 'rgba(0, 102, 255, 0.05)' : '#000000';
+                  e.currentTarget.style.boxShadow = feature.highlight ? '0 0 30px rgba(0, 212, 255, 0.1)' : 'none';
                 }}
               >
+                {/* NEW badge for highlighted features */}
+                {feature.highlight && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '12px',
+                    right: '12px',
+                    padding: '4px 10px',
+                    background: 'linear-gradient(135deg, #00d4ff 0%, #0066ff 100%)',
+                    color: '#000000',
+                    fontFamily: "'Chakra Petch', sans-serif",
+                    fontSize: '9px',
+                    fontWeight: 700,
+                    letterSpacing: '0.15em',
+                    textTransform: 'uppercase',
+                    borderRadius: '2px'
+                  }}>
+                    NEW
+                  </div>
+                )}
+                
                 <div style={{
                   fontFamily: "'Chakra Petch', sans-serif",
                   fontSize: '48px',
                   fontWeight: 700,
-                  color: '#ffffff',
+                  color: feature.highlight ? '#00d4ff' : '#ffffff',
                   marginBottom: '16px',
                   opacity: 1
                 }}>
@@ -814,7 +905,7 @@ export default function HomePage() {
                   fontFamily: "'Chakra Petch', sans-serif",
                   fontSize: '18px',
                   fontWeight: 700,
-                  color: '#0066ff',
+                  color: feature.highlight ? '#00d4ff' : '#0066ff',
                   marginBottom: '12px',
                   letterSpacing: '0.1em',
                   textTransform: 'uppercase'

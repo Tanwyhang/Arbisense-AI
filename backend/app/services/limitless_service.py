@@ -15,12 +15,8 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# Limitless API endpoints
+# Limitless API endpoints (Limitlex Exchange)
 LIMITLESS_API_URL = os.getenv("LIMITLESS_API_URL", "https://limitlex.com/api")
-UNISWAP_SUBGRAPH_URL = os.getenv(
-    "UNISWAP_SUBGRAPH_URL",
-    "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v3"
-)
 
 
 @dataclass
@@ -75,7 +71,7 @@ class LimitlessService:
     """
     Limitless Exchange API client.
     
-    Uses REST API polling with fallback to Uniswap V3 subgraph for pool data.
+    Uses REST API polling for pool and price data from Limitlex.
     """
     
     def __init__(self):
@@ -158,15 +154,8 @@ class LimitlessService:
     async def fetch_pools(self) -> List[LimitlessPool]:
         """Fetch liquidity pools from Limitless API"""
         try:
-            # Try Limitless API first
-            pools = await self._fetch_pools_from_api()
-            
-            if not pools:
-                # Fallback to Uniswap subgraph
-                pools = await self._fetch_pools_from_subgraph()
-            
+            await self._fetch_pools_from_api()
             self.last_pools_update = int(datetime.now().timestamp() * 1000)
-            
             return list(self.pools.values())
             
         except Exception as e:
@@ -174,104 +163,40 @@ class LimitlessService:
             return list(self.pools.values())
     
     async def _fetch_pools_from_api(self) -> List[LimitlessPool]:
-        """Fetch pools from Limitless REST API"""
+        """Fetch pools from Limitlex REST API using public endpoints"""
         if not self.http_client:
             return []
         
         try:
-            response = await self.http_client.get(f"{LIMITLESS_API_URL}/pools")
+            # Use Limitlex's public pairs endpoint to get trading pairs
+            response = await self.http_client.get(f"{LIMITLESS_API_URL}/public/pairs")
             
             if response.status_code == 200:
                 data = response.json()
-                pools = data.get("pools", []) if isinstance(data, dict) else data
+                # Limitlex wraps response in {"result": {"data": [...]}}
+                result = data.get("result", data) if isinstance(data, dict) else data
+                pairs = result.get("data", result) if isinstance(result, dict) else result if isinstance(result, list) else []
                 
-                for pool_data in pools:
-                    pool = self._parse_pool(pool_data)
-                    if pool:
-                        self.pools[pool.address] = pool
-                        
-                        if self.on_pool_update:
-                            await self.on_pool_update(pool)
+                for pair_data in pairs:
+                    if isinstance(pair_data, dict):
+                        pool = self._parse_limitlex_pair(pair_data)
+                        if pool:
+                            self.pools[pool.address] = pool
+                            
+                            if self.on_pool_update:
+                                await self.on_pool_update(pool)
                 
+                logger.debug(f"Fetched {len(self.pools)} pools from Limitlex API")
                 return list(self.pools.values())
             else:
-                logger.warning(f"Limitless API returned {response.status_code}")
+                logger.warning(f"Limitlex API returned {response.status_code}")
                 return []
                 
         except httpx.RequestError as e:
-            logger.warning(f"Limitless API request failed: {e}")
+            logger.warning(f"Limitlex API request failed: {e}")
             return []
     
-    async def _fetch_pools_from_subgraph(self) -> List[LimitlessPool]:
-        """Fetch pools from Uniswap V3 subgraph as fallback"""
-        if not self.http_client:
-            return []
-        
-        query = """
-        {
-            pools(first: 50, orderBy: totalValueLockedUSD, orderDirection: desc) {
-                id
-                token0 {
-                    id
-                    symbol
-                    decimals
-                }
-                token1 {
-                    id
-                    symbol
-                    decimals
-                }
-                feeTier
-                liquidity
-                totalValueLockedUSD
-                volumeUSD
-                token0Price
-                token1Price
-            }
-        }
-        """
-        
-        try:
-            response = await self.http_client.post(
-                UNISWAP_SUBGRAPH_URL,
-                json={"query": query}
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                pools_data = data.get("data", {}).get("pools", [])
-                
-                for pool_data in pools_data:
-                    pool = LimitlessPool(
-                        address=pool_data["id"],
-                        name=f"{pool_data['token0']['symbol']}/{pool_data['token1']['symbol']}",
-                        token0={
-                            "address": pool_data["token0"]["id"],
-                            "symbol": pool_data["token0"]["symbol"],
-                            "decimals": int(pool_data["token0"]["decimals"])
-                        },
-                        token1={
-                            "address": pool_data["token1"]["id"],
-                            "symbol": pool_data["token1"]["symbol"],
-                            "decimals": int(pool_data["token1"]["decimals"])
-                        },
-                        tvl=float(pool_data.get("totalValueLockedUSD", 0)),
-                        volume_24h=float(pool_data.get("volumeUSD", 0)),
-                        fee_tier=int(pool_data.get("feeTier", 3000)) // 100,  # Convert to bps
-                        token0_price=float(pool_data.get("token0Price", 0)),
-                        token1_price=float(pool_data.get("token1Price", 0)),
-                        updated_at=int(datetime.now().timestamp() * 1000)
-                    )
-                    self.pools[pool.address] = pool
-                
-                return list(self.pools.values())
-            else:
-                logger.warning(f"Subgraph returned {response.status_code}")
-                return []
-                
-        except Exception as e:
-            logger.error(f"Subgraph request failed: {e}")
-            return []
+
     
     def _parse_pool(self, data: dict) -> Optional[LimitlessPool]:
         """Parse pool data from API response"""
@@ -302,35 +227,78 @@ class LimitlessService:
             logger.warning(f"Failed to parse pool: {e}")
             return None
     
+    def _parse_limitlex_pair(self, data: dict) -> Optional[LimitlessPool]:
+        """Parse trading pair data from Limitlex API response"""
+        try:
+            # Limitlex pairs format: {"id": "uuid:uuid", "currency_id_1": "...", "currency_id_2": "...", "decimals": 8}
+            pair_id = data.get("id", "")
+            currency_1 = data.get("currency_id_1", "")[:8]  # Truncate UUID for display
+            currency_2 = data.get("currency_id_2", "")[:8]
+            decimals = int(data.get("decimals", 8))
+            
+            if not pair_id:
+                return None
+            
+            return LimitlessPool(
+                address=pair_id,
+                name=f"{currency_1[:4]}/{currency_2[:4]}",  # Short display name
+                token0={
+                    "address": data.get("currency_id_1", ""),
+                    "symbol": currency_1[:4].upper(),
+                    "decimals": decimals
+                },
+                token1={
+                    "address": data.get("currency_id_2", ""),
+                    "symbol": currency_2[:4].upper(),
+                    "decimals": decimals
+                },
+                tvl=0.0,  # Not directly available from pairs endpoint
+                volume_24h=0.0,
+                volume_7d=0.0,
+                apr=0.0,
+                fee_tier=30,  # Default 0.3%
+                token0_price=0.0,
+                token1_price=0.0,
+                updated_at=int(datetime.now().timestamp() * 1000)
+            )
+        except Exception as e:
+            logger.warning(f"Failed to parse Limitlex pair: {e}")
+            return None
+    
     # =========================================================================
     # Price Data
     # =========================================================================
     
     async def fetch_prices(self) -> List[LimitlessPrice]:
-        """Fetch current prices from Limitless API"""
+        """Fetch current prices from Limitlex API using public ticker endpoint"""
         if not self.http_client:
             return list(self.prices.values())
         
         try:
-            response = await self.http_client.get(f"{LIMITLESS_API_URL}/prices")
+            # Use Limitlex's public ticker endpoint for price data
+            response = await self.http_client.get(f"{LIMITLESS_API_URL}/public/ticker")
             
             if response.status_code == 200:
                 data = response.json()
-                prices_data = data.get("prices", []) if isinstance(data, dict) else data
+                # Limitlex wraps response in {"result": [...]}
+                result = data.get("result", data) if isinstance(data, dict) else data
+                tickers = result if isinstance(result, list) else list(result.values()) if isinstance(result, dict) else []
                 
-                for price_data in prices_data:
-                    price = self._parse_price(price_data)
-                    if price:
-                        self.prices[price.pair] = price
-                        
-                        if self.on_price_update:
-                            await self.on_price_update(price)
+                for ticker_data in tickers:
+                    if isinstance(ticker_data, dict):
+                        price = self._parse_limitlex_ticker(ticker_data)
+                        if price:
+                            self.prices[price.pair] = price
+                            
+                            if self.on_price_update:
+                                await self.on_price_update(price)
                 
                 self.last_prices_update = int(datetime.now().timestamp() * 1000)
+                logger.debug(f"Fetched {len(self.prices)} prices from Limitlex ticker")
                 return list(self.prices.values())
                 
             else:
-                # Generate prices from pool data
+                logger.debug(f"Limitlex ticker returned {response.status_code}, using pool-derived prices")
                 return self._generate_prices_from_pools()
                 
         except httpx.RequestError as e:
@@ -354,6 +322,52 @@ class LimitlessService:
             )
         except Exception as e:
             logger.warning(f"Failed to parse price: {e}")
+            return None
+    
+    def _parse_limitlex_ticker(self, data: dict) -> Optional[LimitlessPrice]:
+        """Parse ticker data from Limitlex API response"""
+        try:
+            # Limitlex ticker format: {"pair_id": "uuid:uuid", "last_price": "1.190", "volume_1": ..., "bid": ..., "ask": ...}
+            pair = data.get("pair_id", data.get("pair", ""))
+            if not pair:
+                return None
+            
+            # Parse prices, handling None values
+            last_price_str = data.get("last_price", data.get("last", "0"))
+            last_price = float(last_price_str) if last_price_str else 0.0
+            
+            open_str = data.get("open")
+            open_price = float(open_str) if open_str else last_price
+            
+            # Calculate 24h change
+            change_24h = 0.0
+            if data.get("percentage"):
+                change_24h = float(data.get("percentage", 0))
+            elif open_price > 0 and last_price > 0:
+                change_24h = ((last_price - open_price) / open_price) * 100
+            
+            # Parse volume
+            vol1 = data.get("volume_1")
+            vol2 = data.get("volume_2")
+            volume = float(vol1) if vol1 else (float(vol2) if vol2 else 0.0)
+            
+            # Create short pair name from UUIDs
+            pair_short = pair[:8] if len(pair) > 8 else pair
+            
+            return LimitlessPrice(
+                pair=pair_short.upper(),
+                token0_symbol=data.get("currency_id_1", pair[:4])[:4].upper(),
+                token1_symbol=data.get("currency_id_2", pair[-4:])[:4].upper(),
+                price=last_price,
+                price_usd=last_price,
+                change_1h=0.0,
+                change_24h=change_24h,
+                change_7d=0.0,
+                volume_24h=volume,
+                updated_at=int(datetime.now().timestamp() * 1000)
+            )
+        except Exception as e:
+            logger.warning(f"Failed to parse Limitlex ticker: {e}")
             return None
     
     def _generate_prices_from_pools(self) -> List[LimitlessPrice]:
@@ -380,76 +394,11 @@ class LimitlessService:
     # GraphQL Queries
     # =========================================================================
     
-    async def query_subgraph(self, query: str, variables: dict = None) -> dict:
-        """Execute a GraphQL query against the Uniswap subgraph"""
-        if not self.http_client:
-            return {}
-        
-        try:
-            payload = {"query": query}
-            if variables:
-                payload["variables"] = variables
-            
-            response = await self.http_client.post(
-                UNISWAP_SUBGRAPH_URL,
-                json=payload
-            )
-            
-            if response.status_code == 200:
-                return response.json().get("data", {})
-            else:
-                logger.warning(f"Subgraph query failed: {response.status_code}")
-                return {}
-                
-        except Exception as e:
-            logger.error(f"Subgraph query error: {e}")
-            return {}
+
     
     async def fetch_pool_by_address(self, address: str) -> Optional[LimitlessPool]:
-        """Fetch a specific pool by address"""
-        query = """
-        query GetPool($id: String!) {
-            pool(id: $id) {
-                id
-                token0 { id symbol decimals }
-                token1 { id symbol decimals }
-                feeTier
-                totalValueLockedUSD
-                volumeUSD
-                token0Price
-                token1Price
-            }
-        }
-        """
-        
-        data = await self.query_subgraph(query, {"id": address.lower()})
-        pool_data = data.get("pool")
-        
-        if pool_data:
-            pool = LimitlessPool(
-                address=pool_data["id"],
-                name=f"{pool_data['token0']['symbol']}/{pool_data['token1']['symbol']}",
-                token0={
-                    "address": pool_data["token0"]["id"],
-                    "symbol": pool_data["token0"]["symbol"],
-                    "decimals": int(pool_data["token0"]["decimals"])
-                },
-                token1={
-                    "address": pool_data["token1"]["id"],
-                    "symbol": pool_data["token1"]["symbol"],
-                    "decimals": int(pool_data["token1"]["decimals"])
-                },
-                tvl=float(pool_data.get("totalValueLockedUSD", 0)),
-                volume_24h=float(pool_data.get("volumeUSD", 0)),
-                fee_tier=int(pool_data.get("feeTier", 3000)) // 100,
-                token0_price=float(pool_data.get("token0Price", 0)),
-                token1_price=float(pool_data.get("token1Price", 0)),
-                updated_at=int(datetime.now().timestamp() * 1000)
-            )
-            self.pools[pool.address] = pool
-            return pool
-        
-        return None
+        """Fetch a specific pool by address from cache"""
+        return self.pools.get(address)
     
     # =========================================================================
     # Data Access

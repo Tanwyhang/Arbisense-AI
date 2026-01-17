@@ -50,7 +50,7 @@ bun run dev
 - **Arbitrage Engine**: Real-time cross-platform spread detection between Polymarket & Limitless Exchange. Includes fee-adjusted profit calculation and signal generation.
 - **WebSocket Manager**: High-performance broadcasting system with connection pooling and automatic reconnection (exponential backoff).
 - **Polymarket Service**: Live CLOB data integration (trades, orderbooks, and price changes).
-- **Limitless Service**: Dynamic pricing feed with Uniswap V3 subgraph fallback.
+- **Limitless Service**: Dynamic pricing feed via Limitlex REST API.
 - **Monte Carlo Engine**: Non-uniform sampling with Lévy flights (α=1.7) for fat-tail modeling.
 - **Multi-Agent Judge**: Specialized Risk, Gas, and Alpha agents with a 2/3 consensus protocol.
 - **Kelly Optimizer**: Correlation-adjusted position sizing with strict safety caps.
